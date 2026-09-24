@@ -21,7 +21,7 @@ import uvicorn
 from fastapi import Cookie, FastAPI, Response
 
 app = FastAPI()
-COURSES = {1: 'Python', 2: 'FastAPI', 3: 'SQL', 4: 'Docker'}
+COURSES = {1: 'Python', 2: 'FastAPI', 3: 'SQL', 4: 'Git'}
 
 
 @app.get('/courses/{course_id}')

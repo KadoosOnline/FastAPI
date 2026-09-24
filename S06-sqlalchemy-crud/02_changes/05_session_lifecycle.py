@@ -26,7 +26,7 @@ def main() -> None:
         print('same object?', first is second)
 
         print('\n--- add + flush')
-        new = Course(title='Docker', price=3_000_000, level='intermediate', instructor_id=1)
+        new = Course(title='Git', price=3_000_000, level='intermediate', instructor_id=1)
         session.add(new)
         print('id before flush:', new.id)
         session.flush()

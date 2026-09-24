@@ -1,7 +1,7 @@
 """A small "teacher dashboard" that uses the Training Center API.
 
     python -m client_app.main
-    python -m client_app.main --email teacher2@kadoos.ir --new-course "Docker Basics"
+    python -m client_app.main --email teacher2@kadoos.ir --new-course "Git Basics"
 
 It authenticates, receives a JWT, stores and uses it, reads protected data
 concurrently, creates and updates a course, and turns every failure into a

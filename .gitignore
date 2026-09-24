@@ -6,8 +6,8 @@
 CLAUDE.md
 docs/
 
-# The first, over-engineered draft; kept locally to reuse tested code
-_draft/
+# Book sources, proofreading toolkit and verification scripts (local only)
+_tools/
 
 # =====================================================================
 # Standard exclusions

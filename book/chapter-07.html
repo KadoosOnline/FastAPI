@@ -110,16 +110,16 @@ class Enrollment(Base):
         assert course is not None
         print(course, &#x27;is taught by&#x27;, course.instructor)
 
-        docker = Course(title=&#x27;Docker&#x27;, instructor=ali)
-        print(&#x27;before flush, instructor_id =&#x27;, docker.instructor_id)
-        print(&#x27;already in the list?&#x27;, docker in ali.courses_taught)
-        session.add(docker)
+        git_course = Course(title=&#x27;Git&#x27;, instructor=ali)
+        print(&#x27;before flush, instructor_id =&#x27;, git_course.instructor_id)
+        print(&#x27;already in the list?&#x27;, git_course in ali.courses_taught)
+        session.add(git_course)
         session.flush()
-        print(&#x27;after flush, instructor_id  =&#x27;, docker.instructor_id)
+        print(&#x27;after flush, instructor_id  =&#x27;, git_course.instructor_id)
 
         # Move a course to another teacher by changing the relationship
         mina = course.instructor
-        docker.instructor = mina
+        git_course.instructor = mina
         session.commit()
         print(&#x27;Mina now teaches&#x27;, mina.courses_taught)</code></pre>
     <p class="code-caption">کار با رابطه از هر دو سمت: <bdi dir="ltr">01_one_to_many.py</bdi></p>

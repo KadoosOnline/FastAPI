@@ -31,7 +31,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(120))
 
 
-TOPICS = ['Python', 'FastAPI', 'Django', 'SQL', 'Docker', 'Git', 'Linux', 'React', 'HTML']
+TOPICS = ['Python', 'FastAPI', 'Django', 'SQL', 'Flask', 'Git', 'Linux', 'React', 'HTML']
 LEVELS = ['beginner', 'intermediate', 'advanced']
 
 

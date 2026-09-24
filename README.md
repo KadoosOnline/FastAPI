@@ -33,7 +33,7 @@
 توضیح کامل پوشش می‌دهد. خودِ کتاب با HTML و CSS ساخته شده است.
 
 - **فصل صفر** آماده‌سازی محیط کار را توضیح می‌دهد: محیط مجازی، نصب بسته‌ها،
-  VS Code، برنامه Bruno، نمایشگر SQLite و در صورت نیاز Docker.
+  VS Code، برنامه Bruno، نمایشگر SQLite و در صورت نیاز PostgreSQL.
 - **فصل‌های یک تا شانزده** دقیقاً برابر جلسه‌های دوره هستند. هر فصل ابتدا مسئله
   را توضیح می‌دهد، سپس نمونه‌کدها را نشان می‌دهد و در پایان به پروژه همان جلسه
   می‌رسد.
@@ -56,7 +56,7 @@
 | [`S02-fastapi-first-steps`](S02-fastapi-first-steps) | اولین برنامه FastAPI، پارامتر مسیر و پرس‌وجو، بدنه درخواست، کدهای وضعیت و روترها |
 | [`S03-pydantic-validation`](S03-pydantic-validation) | مدل‌های Pydantic، قواعد فیلدها، اعتبارسنج سفارشی و الگوی Create / Update / Read |
 | [`S04-dependency-injection`](S04-dependency-injection) | تزریق وابستگی، هدر و کوکی، مدیریت متمرکز خطا، تنظیمات و ساختار پروژه |
-| [`S05-sqlalchemy-models`](S05-sqlalchemy-models) | پایگاه داده رابطه‌ای، موتور و نشست، مدل‌های تایپ‌دار SQLAlchemy 2 و PostgreSQL با Docker |
+| [`S05-sqlalchemy-models`](S05-sqlalchemy-models) | پایگاه داده رابطه‌ای، موتور و نشست، مدل‌های تایپ‌دار SQLAlchemy 2 و نصب PostgreSQL روی ویندوز و اوبونتو |
 | [`S06-sqlalchemy-crud`](S06-sqlalchemy-crud) | پرس‌وجو با select، به‌روزرسانی و حذف، تراکنش، خطاهای یکتایی و بازنویسی کد بد |
 | [`S07-sqlalchemy-relationships`](S07-sqlalchemy-relationships) | رابطه یک‌به‌چند و چندبه‌چند، مسئله N+1 و بارگذاری بهینه |
 | [`S08-alembic-and-pagination`](S08-alembic-and-pagination) | مهاجرت پایگاه داده با Alembic، صفحه‌بندی، جست‌وجو، فیلتر و مرتب‌سازی |
@@ -139,8 +139,9 @@ pytest
 - پایتون نسخه ۳٫۱۲ یا بالاتر، از [python.org](https://www.python.org).
 - ویرایشگر [VS Code](https://code.visualstudio.com).
 - برنامه [Bruno](https://www.usebruno.com) برای آزمودن API.
-- برای یک نمونه از جلسه پنجم و اجرای اختیاری پروژه با PostgreSQL:
-  [Docker Desktop](https://www.docker.com/products/docker-desktop/). بقیه دوره با
+- برای یک نمونه از جلسه پنجم و اجرای اختیاری پروژه‌ها با PostgreSQL: خود
+  [PostgreSQL](https://www.postgresql.org/download/) نصب‌شده روی ویندوز ۱۱ یا اوبونتو.
+  راهنمای نصب در `S05-sqlalchemy-models/05_postgresql/README.md` است. بقیه دوره با
   SQLite کار می‌کند و به نصب پایگاه داده نیازی ندارد.
 
 ## فناوری‌ها

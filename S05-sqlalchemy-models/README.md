@@ -8,7 +8,7 @@ SQLAlchemy 2.x — `DeclarativeBase`, `Mapped[...]`, `mapped_column(...)`,
 `select(...)` — create the `User`, `Course` and `Enrollment` tables, insert
 and read rows, let the database enforce its own rules, and plug one session
 per request into FastAPI. SQLite in class (nothing to install), PostgreSQL in
-one example (only the URL changes).
+one example (installed on your own computer; only the URL changes).
 
 ## Time plan
 | Part | Minutes | What happens |
@@ -32,7 +32,8 @@ python -m venv .venv
 source .venv/bin/activate         # Linux / macOS
 pip install -r requirements.txt
 ```
-Optional, for example 05 only: Docker Desktop.
+Optional, for example 05 and later sessions: **PostgreSQL** installed on your
+computer (Windows 11 or Ubuntu). Step-by-step instructions: `05_postgresql/README.md`.
 
 A free viewer for `.db` files: **DB Browser for SQLite** (<https://sqlitebrowser.org>)
 or the *SQLite Viewer* extension of VS Code.
@@ -50,7 +51,7 @@ or the *SQLite Viewer* extension of VS Code.
 * Constraints: `unique`, `CheckConstraint`, `ForeignKey`, `UniqueConstraint`
 * Defaults: `default=`, `server_default=func.now()`, `onupdate=`, timestamps
 * `IntegrityError` and `rollback()`; SQLite's `PRAGMA foreign_keys=ON`
-* PostgreSQL with Docker Compose; reading connection errors
+* Installing PostgreSQL on Windows 11 and Ubuntu, a user and a database, `psql`; reading connection errors
 * `get_db` with `yield`, `DbSession = Annotated[Session, Depends(get_db)]`
 * ORM model → Pydantic schema with `from_attributes=True`; `db.refresh()`
 
@@ -61,7 +62,7 @@ or the *SQLite Viewer* extension of VS Code.
 | `02_declarative_models` | `DeclarativeBase`, `Mapped`, `mapped_column`, `create_all` |
 | `03_insert_and_query` | `add`, `commit`, `get`, `select`, `scalars` |
 | `04_constraints_and_defaults` | The database says no: `IntegrityError` |
-| `05_postgresql_with_docker` | Same code on PostgreSQL (`docker compose up -d`) |
+| `05_postgresql` | Install PostgreSQL (Windows / Ubuntu), `setup.sql`, same code on PostgreSQL |
 | `06_fastapi_with_database` | One session per request, ORM → schema |
 | `07_project` | **Project:** Training Center API v4 on a database + Bruno |
 

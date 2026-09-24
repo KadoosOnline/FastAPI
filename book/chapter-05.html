@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="فصل پنج: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار. پایگاه داده رابطه‌ای، engine و Session، DeclarativeBase و Mapped، درج و پرس‌وجو، قیدها و پیش‌فرض‌ها، PostgreSQL با Docker، نشست برای هر درخواست">
+    <meta name="description" content="فصل پنج: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار. پایگاه داده رابطه‌ای، engine و Session، DeclarativeBase و Mapped، درج و پرس‌وجو، قیدها و پیش‌فرض‌ها، نصب PostgreSQL روی ویندوز و اوبونتو، نشست برای هر درخواست">
     <title>فصل ۵: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</title>
     <link rel="icon" href="logokm.png" type="image/png">
     <link rel="stylesheet" href="style.css">
@@ -31,7 +31,7 @@
             <li><a href="#s3">مدل‌ها: کلاس‌های پایتون که جدول را توصیف می‌کنند</a></li>
             <li><a href="#s4">درج و پرس‌وجو</a></li>
             <li><a href="#s5">قیدها و پیش‌فرض‌ها: پایگاه داده نه می‌گوید</a></li>
-            <li><a href="#s6">PostgreSQL با Docker: فقط نشانی عوض می‌شود</a></li>
+            <li><a href="#s6">PostgreSQL روی کامپیوتر خودتان: فقط نشانی عوض می‌شود</a></li>
             <li><a href="#s7">FastAPI و پایگاه داده: یک نشست برای هر درخواست</a></li>
             <li><a href="#s8">پروژه: API آموزشگاه روی پایگاه داده</a></li>
             <li><a href="#s9">خلاصه فصل</a></li>
@@ -249,35 +249,48 @@ saved    Course</pre>
         <p>SQLite کلیدهای خارجی را بررسی نمی‌کند مگر اینکه بخواهید: <code>PRAGMA foreign_keys=ON</code>. PostgreSQL همیشه بررسی می‌کند. شنونده رویداد <code>connect</code> در این مثال و در پروژه همین کار را انجام می‌دهد.</p>
     </div>
 
-    <h2 id="s6">۶. PostgreSQL با Docker: فقط نشانی عوض می‌شود</h2>
-    <pre class="code"><code># PostgreSQL in one command, without installing it:
-#   docker compose up -d        start in the background
-#   docker compose ps           is it &quot;healthy&quot;?
-#   docker compose down         stop (the data stays in the volume)
-#   docker compose down -v      stop and DELETE the data
-services:
-  db:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: training
-      POSTGRES_PASSWORD: training
-      POSTGRES_DB: training
-    ports:
-      - &quot;5432:5432&quot;
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: [&quot;CMD-SHELL&quot;, &quot;pg_isready -U training&quot;]
-      interval: 5s
-      retries: 10
+    <h2 id="s6">۶. PostgreSQL روی کامپیوتر خودتان: فقط نشانی عوض می‌شود</h2>
+    <p>SQLite یک فایل است و به چیزی نیاز ندارد. PostgreSQL یک <strong>سرور</strong> پایگاه داده است: به شکل یک سرویس در پس‌زمینه اجرا می‌شود و برنامه‌ها از راه شبکه به آن وصل می‌شوند، اینجا به <code>localhost</code> و درگاه <code>5432</code>. آن را یک بار نصب می‌کنید و از آن به بعد هر جلسه فقط با عوض کردن <code>DATABASE_URL</code> از آن استفاده می‌کند.</p>
 
-volumes:
-  pgdata:</code></pre>
-    <p class="code-caption">PostgreSQL با یک فرمان: <bdi dir="ltr">05_postgresql_with_docker/docker-compose.yml</bdi></p>
-    <pre class="out">docker compose up -d        # start in the background
-docker compose ps           # is it &quot;healthy&quot;?
+    <h3>نصب روی ویندوز ۱۱</h3>
+    <p>در <strong>PowerShell</strong> این فرمان را بزنید، یا نصب‌کننده را از <a href="https://www.postgresql.org/download/windows/" target="_blank">postgresql.org</a> بگیرید:</p>
+    <pre class="out">winget install --id PostgreSQL.PostgreSQL.17</pre>
+    <p>نصب‌کننده یک رمز برای کاربر مدیر یعنی **<code>postgres</code><strong> می‌خواهد؛ آن را یادداشت کنید. درگاه را همان </strong>5432** بگذارید و اجزای *PostgreSQL Server*، *pgAdmin 4* و *Command Line Tools* را نگه دارید. PostgreSQL از این به بعد یک سرویس ویندوز به نام <code>postgresql-x64-17</code> است که با ویندوز روشن می‌شود. برای استفاده از <code>psql</code> در ترمینال، یک بار پوشه آن را به <code>PATH</code> اضافه کنید و ترمینال <strong>تازه‌ای</strong> باز کنید:</p>
+    <pre class="out">setx PATH &quot;$env:PATH;C:\Program Files\PostgreSQL\17\bin&quot;</pre>
+
+    <h3>نصب روی اوبونتو</h3>
+    <pre class="out">sudo apt update
+sudo apt install postgresql
+sudo systemctl enable --now postgresql    # start now and at every boot
+systemctl status postgresql               # should say &quot;active&quot;</pre>
+    <p>اوبونتو کاربر مدیر <code>postgres</code> را بدون رمز می‌سازد و با <code>sudo -u postgres</code> از آن استفاده می‌کنید.</p>
+
+    <h3>ساختن کاربر و پایگاه داده دوره</h3>
+    <pre class="code"><code>-- Create the user and the database of the course (run once, as the &quot;postgres&quot; superuser).
+--   Windows:  psql -U postgres -f setup.sql
+--   Ubuntu:   sudo -u postgres psql &lt; setup.sql
+CREATE ROLE training WITH LOGIN PASSWORD &#x27;training&#x27;;
+CREATE DATABASE training OWNER training;</code></pre>
+    <p class="code-caption">یک کاربر و یک پایگاه داده: 05_postgresql/setup.sql</p>
+    <pre class="out">psql -U postgres -f setup.sql             # Windows (asks the postgres password)
+sudo -u postgres psql &lt; setup.sql         # Ubuntu
 python app.py
 postgresql -&gt; [(1, &#x27;FastAPI&#x27;)]</pre>
+    <p>نشانی اتصال دوره از این به بعد این است: <code>postgresql+psycopg://training:training@localhost:5432/training</code></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>کار</th><th>ویندوز (PowerShell مدیر)</th><th>اوبونتو</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>اجرا می‌شود؟</td><td><code>Get-Service postgresql*</code></td><td><code>systemctl status postgresql</code></td></tr>
+                <tr><td>روشن کردن</td><td><code>net start postgresql-x64-17</code></td><td><code>sudo systemctl start postgresql</code></td></tr>
+                <tr><td>خاموش کردن</td><td><code>net stop postgresql-x64-17</code></td><td><code>sudo systemctl stop postgresql</code></td></tr>
+                <tr><td>پوسته SQL</td><td><code>psql -U training -d training -h localhost</code></td><td>همان</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>درون <code>psql</code>، فرمان <code>\dt</code> جدول‌ها را فهرست می‌کند، <code>\d courses</code> یک جدول را توصیف می‌کند و <code>\q</code> خارج می‌شود.</p>
     <p>خطاهای رایج اتصال و معنای آنها:</p>
     <div class="table-scroll">
         <table>
@@ -285,9 +298,9 @@ postgresql -&gt; [(1, &#x27;FastAPI&#x27;)]</pre>
                 <tr><th>پیام</th><th>معنی</th></tr>
             </thead>
             <tbody>
-                <tr><td><code>connection refused</code></td><td>پایگاه داده اجرا نمی‌شود (<code>docker compose ps</code>)</td></tr>
+                <tr><td><code>connection refused</code></td><td>سرویس PostgreSQL اجرا نمی‌شود</td></tr>
                 <tr><td><code>password authentication failed</code></td><td>نام کاربری یا رمز نشانی اشتباه است</td></tr>
-                <tr><td><code>database ... does not exist</code></td><td>نام پایگاه داده اشتباه است</td></tr>
+                <tr><td><code>database ... does not exist</code></td><td><code>setup.sql</code> اجرا نشده یا نام پایگاه داده اشتباه است</td></tr>
                 <tr><td><code>No module named psycopg</code></td><td>کتابخانه‌ها نصب نشده‌اند</td></tr>
             </tbody>
         </table>
@@ -422,7 +435,7 @@ class Enrollment(Base):
     <p>در این جلسه ساختن و خواندن کار می‌کند. ویرایش و حذف با SQLAlchemy موضوع فصل ششم است.</p>
     <div class="folder-ref">
         <span class="box-title">فایل‌های تمرینی این فصل</span>
-        <p>پوشه <code>S05-sqlalchemy-models</code> هفت پوشه دارد. هر نمونه <code>training.db</code> خودش را کنار <code>app.py</code> می‌سازد؛ برای شروع دوباره پاکش کنید. نمونه ۰۵ به Docker نیاز دارد. برای پروژه ابتدا <code>python seed.py</code> و بعد <code>python main.py</code> را اجرا کنید. برای دیدن محتوای پایگاه داده، <code>training.db</code> را در افزونه SQLite Viewer باز کنید.</p>
+        <p>پوشه <code>S05-sqlalchemy-models</code> هفت پوشه دارد. هر نمونه <code>training.db</code> خودش را کنار <code>app.py</code> می‌سازد؛ برای شروع دوباره پاکش کنید. نمونه ۰۵ به PostgreSQL نصب‌شده روی کامپیوتر نیاز دارد؛ راهنمای کامل در <code>05_postgresql/README.md</code> است. برای پروژه ابتدا <code>python seed.py</code> و بعد <code>python main.py</code> را اجرا کنید. برای دیدن محتوای پایگاه داده، <code>training.db</code> را در افزونه SQLite Viewer باز کنید.</p>
     </div>
 
     <h2 id="s9">۹. خلاصه فصل</h2>

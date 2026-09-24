@@ -77,7 +77,7 @@ The project:
 cd 07_project
 pytest                                        # no server needed
 python -m client_app.main                     # the teacher dashboard
-python -m client_app.main --new-course "Docker Basics"
+python -m client_app.main --new-course "Git Basics"
 python -m client_app.main --password wrong    # a clean error, no traceback
 ```
 The browser client:

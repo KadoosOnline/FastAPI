@@ -12,7 +12,7 @@ post {
 
 body:json {
   {
-    "title": "  Docker   for   Developers ",
+    "title": "  Git   for   Developers ",
     "price": 3000000,
     "capacity": 15,
     "instructor_id": 1
@@ -22,6 +22,6 @@ body:json {
 tests {
   test("status is 201", function() {
     expect(res.status).to.equal(201);
-    expect(res.body.title).to.equal("Docker for Developers");
+    expect(res.body.title).to.equal("Git for Developers");
   });
 }

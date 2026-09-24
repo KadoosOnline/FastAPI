@@ -35,7 +35,7 @@
 10. Add a lifespan check that the upload folder is writable and that the
     database answers `SELECT 1`; refuse to start otherwise.
 11. Run the project on PostgreSQL with `asyncpg` (see
-    `S05-sqlalchemy-models/05_postgresql_with_docker`) and replay the Bruno
+    `S05-sqlalchemy-models/05_postgresql`) and replay the Bruno
     collection.
 
 ## To think about

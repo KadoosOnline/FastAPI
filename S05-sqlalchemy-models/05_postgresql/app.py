@@ -7,20 +7,20 @@ the same -- only the connection string is different:
     postgresql+psycopg://USER:PASSWORD@HOST:PORT/DATABASE
                  ^ the driver (psycopg 3)
 
-Run PostgreSQL with Docker (no installation needed):
+Install PostgreSQL on Windows 11 or Ubuntu and create the course database
+first: see README.md in this folder. Then:
 
-    docker compose up -d
     python app.py
 
-If Docker is not available, run with SQLite instead:
+Without PostgreSQL you can still run it on SQLite:
 
     DATABASE_URL=sqlite:///training.db python app.py        (Linux / macOS)
     set DATABASE_URL=sqlite:///training.db && python app.py (Windows cmd)
 
 Common connection errors and what they mean:
-    "connection refused"               the database is not running (docker compose ps)
+    "connection refused"               the PostgreSQL service is not running
     "password authentication failed"   wrong user / password in the URL
-    "database ... does not exist"      wrong database name
+    "database ... does not exist"      setup.sql was not run, or a wrong name
     "No module named psycopg"          pip install -r ../requirements.txt
 """
 

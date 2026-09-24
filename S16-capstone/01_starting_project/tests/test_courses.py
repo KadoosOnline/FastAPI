@@ -8,7 +8,7 @@ from tests.conftest import CourseFactory, UserFactory
 
 pytestmark = pytest.mark.anyio
 Auth = Callable[[User], dict[str, str]]
-NEW_COURSE = {'title': 'Docker', 'price': 3_000_000, 'capacity': 15}
+NEW_COURSE = {'title': 'Git', 'price': 3_000_000, 'capacity': 15}
 
 
 async def test_anybody_can_browse(

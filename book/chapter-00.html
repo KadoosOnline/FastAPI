@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="فصل صفر: مقدمه: آماده‌سازی محیط کار. بک‌اند چیست، پایتون و محیط مجازی، VS Code، Bruno، SQLite و Docker، اجرای اولین سرور">
+    <meta name="description" content="فصل صفر: مقدمه: آماده‌سازی محیط کار. بک‌اند چیست، پایتون و محیط مجازی، VS Code، Bruno، SQLite و PostgreSQL، اجرای اولین سرور">
     <title>فصل ۰: مقدمه: آماده‌سازی محیط کار</title>
     <link rel="icon" href="logokm.png" type="image/png">
     <link rel="stylesheet" href="style.css">
@@ -20,7 +20,7 @@
     <div class="chapter-head">
         <span class="chapter-num">فصل ۰</span>
         <h1>مقدمه: آماده‌سازی محیط کار</h1>
-        <p class="lead">پیش از جلسه اول، محیط کار را آماده می‌کنیم: پایتون و محیط مجازی، VS Code، برنامه Bruno برای آزمودن API، یک نمایشگر SQLite و در صورت نیاز Docker. در پایان فصل، اولین سرور FastAPI را اجرا می‌کنیم تا مطمئن شویم همه چیز سر جایش است.</p>
+        <p class="lead">پیش از جلسه اول، محیط کار را آماده می‌کنیم: پایتون و محیط مجازی، VS Code، برنامه Bruno برای آزمودن API، یک نمایشگر SQLite و در صورت نیاز PostgreSQL. در پایان فصل، اولین سرور FastAPI را اجرا می‌کنیم تا مطمئن شویم همه چیز سر جایش است.</p>
     </div>
 
     <div class="mini-toc">
@@ -30,7 +30,7 @@
             <li><a href="#s2">پایتون و محیط مجازی</a></li>
             <li><a href="#s3">ویرایشگر VS Code</a></li>
             <li><a href="#s4">Bruno: میز کار API</a></li>
-            <li><a href="#s5">SQLite و در صورت نیاز Docker</a></li>
+            <li><a href="#s5">SQLite و در صورت نیاز PostgreSQL</a></li>
             <li><a href="#s6">اولین سرور</a></li>
             <li><a href="#s7">نقشه راه دوره</a></li>
             <li><a href="#s8">خلاصه فصل</a></li>
@@ -98,9 +98,9 @@ tests {
 }</pre>
     <p>هر فایل <code>.bru</code> یک درخواست است. <code>{{baseUrl}}</code> یک متغیر محیط است و بخش <code>tests</code> بعد از هر اجرا کد وضعیت را بررسی می‌کند.</p>
 
-    <h2 id="s5">۵. SQLite و در صورت نیاز Docker</h2>
+    <h2 id="s5">۵. SQLite و در صورت نیاز PostgreSQL</h2>
     <p>از فصل پنجم، پروژه یک پایگاه داده واقعی دارد. در کلاس از <strong>SQLite</strong> استفاده می‌کنیم: پایگاه داده‌ای که فقط یک فایل است و به نصب هیچ چیزی نیاز ندارد. پایتون آن را همراه خودش دارد.</p>
-    <p>سرورهای واقعی معمولاً از <strong>PostgreSQL</strong> استفاده می‌کنند. خوشبختانه با SQLAlchemy برای رفتن از SQLite به PostgreSQL فقط باید نشانی اتصال را عوض کرد. برای اجرای PostgreSQL بدون نصب آن، از <strong>Docker</strong> استفاده می‌کنیم؛ کافی است <a href="https://www.docker.com/products/docker-desktop/" target="_blank">Docker Desktop</a> را نصب کنید. فصل پنجم تنها فرمان‌هایی را که لازم است نشان می‌دهد و این دوره آموزش Docker نیست.</p>
+    <p>سرورهای واقعی معمولاً از <strong>PostgreSQL</strong> استفاده می‌کنند. خوشبختانه با SQLAlchemy برای رفتن از SQLite به PostgreSQL فقط باید نشانی اتصال را عوض کرد. PostgreSQL را مستقیم روی ویندوز ۱۱ یا اوبونتوی خودتان نصب می‌کنیم و بعد مثل یک سرویس در پس‌زمینه اجرا می‌شود. روش نصب قدم‌به‌قدم در فصل پنجم آمده است و تا آن وقت لازم نیست کاری بکنید.</p>
 
     <h2 id="s6">۶. اولین سرور</h2>
     <p>برای اطمینان از اینکه همه چیز درست نصب شده است، اولین برنامه FastAPI را اجرا کنید:</p>
@@ -181,7 +181,7 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)</pre>
                 <tr><td>VS Code + Python + Pylance</td><td>نوشتن کد با بررسی نوع</td></tr>
                 <tr><td>Bruno</td><td>فرستادن و آزمودن درخواست‌ها، ذخیره آنها در Git</td></tr>
                 <tr><td>SQLite</td><td>پایگاه داده بدون نصب، برای کلاس</td></tr>
-                <tr><td>Docker</td><td>اجرای PostgreSQL بدون نصب آن</td></tr>
+                <tr><td>PostgreSQL</td><td>پایگاه داده سرورهای واقعی، روی ویندوز یا اوبونتو</td></tr>
                 <tr><td><code>/docs</code> و <code>/redoc</code></td><td>مستند زنده‌ای که FastAPI می‌سازد</td></tr>
             </tbody>
         </table>
@@ -194,7 +194,7 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)</pre>
             <li>نمونه <code>01_first_app</code> را اجرا کنید و هر سه نشانی <code>/</code>، <code>/docs</code> و <code>/redoc</code> را باز کنید.</li>
             <li>Bruno را نصب کنید و مجموعه <code>S01-python-refresh-and-rest/13_bruno_first_requests</code> را باز کنید. هر چهار درخواست را اجرا کنید.</li>
             <li>در Bruno یک درخواست تازه بسازید که <code>GET http://127.0.0.1:8000/about</code> را صدا بزند.</li>
-            <li>اگر Docker دارید، در پوشه <code>S05-sqlalchemy-models/05_postgresql_with_docker</code> فرمان <code>docker compose up -d</code> را بزنید و با <code>docker compose ps</code> وضعیت پایگاه داده را ببینید.</li>
+            <li>راهنمای نصب PostgreSQL را در پوشه <code>S05-sqlalchemy-models/05_postgresql</code> بخوانید و ببینید برای سیستم‌عامل شما کدام فرمان‌ها لازم است.</li>
         </ol>
     </div>
 

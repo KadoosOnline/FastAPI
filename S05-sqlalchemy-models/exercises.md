@@ -23,7 +23,7 @@
    duplicate e-mail. Read the next error message carefully.
 8. Remove the `PRAGMA foreign_keys=ON` listener. Which insert now succeeds
    although it should not?
-9. **Debug the connection:** in `05_postgresql_with_docker`, change the
+9. **Debug the connection:** in `05_postgresql`, change the
    password, the port, then the database name in the URL. Write down the
    error for each case.
 
@@ -36,7 +36,7 @@
     `seed.py`, and prove the constraint works with a small script.
 13. Set `DATABASE_ECHO=true` in `.env` and call `GET /courses/1/enrollments`
     from Bruno. How many SQL statements does one request run?
-14. Point the project at PostgreSQL (example 05's container) by changing only
+14. Point the project at PostgreSQL (the database of example 05) by changing only
     `.env`. Run `seed.py` and the Bruno collection again.
 
 ## To think about
@@ -51,4 +51,4 @@ Move your **Library API** to SQLAlchemy: `Book`, `Member` and `Loan` models
 in the typed style with sensible constraints (unique ISBN, `pages > 0`,
 a loan can not end before it starts), a `get_db` dependency, a `seed.py`, and
 the create / read endpoints working against SQLite. Bonus: run it on
-PostgreSQL with Docker.
+PostgreSQL installed on your computer.

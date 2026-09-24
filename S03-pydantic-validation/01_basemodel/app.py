@@ -29,7 +29,7 @@ def main() -> None:
 
     data_from_json = {'id': 8, 'title': 'SQL', 'price': 2_900_000}
     print(Course.model_validate(data_from_json))
-    print(Course.model_validate_json('{"id": 9, "title": "Docker", "price": 3000000}'))
+    print(Course.model_validate_json('{"id": 9, "title": "Git", "price": 3000000}'))
 
     try:
         Course(id='abc', title=None, price=1.5)

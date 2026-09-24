@@ -28,16 +28,16 @@ def main() -> None:
         assert course is not None
         print(course, 'is taught by', course.instructor)
 
-        docker = Course(title='Docker', instructor=ali)
-        print('before flush, instructor_id =', docker.instructor_id)
-        print('already in the list?', docker in ali.courses_taught)
-        session.add(docker)
+        git_course = Course(title='Git', instructor=ali)
+        print('before flush, instructor_id =', git_course.instructor_id)
+        print('already in the list?', git_course in ali.courses_taught)
+        session.add(git_course)
         session.flush()
-        print('after flush, instructor_id  =', docker.instructor_id)
+        print('after flush, instructor_id  =', git_course.instructor_id)
 
         # Move a course to another teacher by changing the relationship
         mina = course.instructor
-        docker.instructor = mina
+        git_course.instructor = mina
         session.commit()
         print('Mina now teaches', mina.courses_taught)
 

@@ -3,7 +3,7 @@
 The client sends JSON in the body:
 
     POST /courses
-    {"title": "Docker", "price": 3000000, "capacity": 20}
+    {"title": "Git", "price": 3000000, "capacity": 20}
 
 We describe the expected shape with a small Pydantic model (the whole of
 session 3 is about Pydantic; here we only need the basics). A parameter
