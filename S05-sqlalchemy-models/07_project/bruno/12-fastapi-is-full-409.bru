@@ -1,0 +1,23 @@
+meta {
+  name: FastAPI is full (409)
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/courses/3/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "student_id": 6
+  }
+}
+
+tests {
+  test("status is 409", function() {
+    expect(res.status).to.equal(409);
+  });
+}

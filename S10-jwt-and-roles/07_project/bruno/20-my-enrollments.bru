@@ -1,0 +1,21 @@
+meta {
+  name: My enrollments
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/users/me/enrollments
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

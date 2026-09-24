@@ -1,0 +1,96 @@
+"""Database tables, now WITH relationships (session 7).
+
+User 1 ──< Course                      instructor -> courses_taught
+User 1 ──< Enrollment >── 1 Course     many-to-many with data on the link
+"""
+
+from datetime import UTC, date, datetime
+
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class User(Base):
+    __tablename__ = 'users'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    hashed_password: Mapped[str] = mapped_column(String(255))  # session 9 -> migration 0003
+    role: Mapped[str] = mapped_column(String(20), default='student')
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+    courses_taught: Mapped[list['Course']] = relationship(back_populates='instructor')
+    enrollments: Mapped[list['Enrollment']] = relationship(
+        back_populates='student', cascade='all, delete-orphan'
+    )
+
+
+class Course(Base):
+    __tablename__ = 'courses'
+    __table_args__ = (
+        CheckConstraint('price >= 0', name='price_not_negative'),
+        CheckConstraint('capacity > 0', name='capacity_positive'),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str] = mapped_column(Text, default='')
+    price: Mapped[int]
+    capacity: Mapped[int]
+    level: Mapped[str] = mapped_column(String(20), default='beginner')
+    start_date: Mapped[date | None]  # added in session 8 -> migration 0002
+    is_active: Mapped[bool] = mapped_column(default=True)
+    instructor_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+    instructor: Mapped['User'] = relationship(back_populates='courses_taught')
+    enrollments: Mapped[list['Enrollment']] = relationship(
+        back_populates='course', cascade='all, delete-orphan'
+    )
+    materials: Mapped[list['CourseMaterial']] = relationship(
+        back_populates='course', cascade='all, delete-orphan'
+    )
+
+
+class Enrollment(Base):
+    __tablename__ = 'enrollments'
+    __table_args__ = (
+        UniqueConstraint('student_id', 'course_id', name='one_enrollment_per_course'),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'))
+    course_id: Mapped[int] = mapped_column(ForeignKey('courses.id', ondelete='CASCADE'))
+    status: Mapped[str] = mapped_column(String(20), default='active')
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+
+    student: Mapped['User'] = relationship(back_populates='enrollments')
+    course: Mapped['Course'] = relationship(back_populates='enrollments')
+
+
+class CourseMaterial(Base):
+    """Metadata of an uploaded file (session 11). The bytes live on disk, not here."""
+
+    __tablename__ = 'course_materials'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey('courses.id', ondelete='CASCADE'), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    original_filename: Mapped[str] = mapped_column(String(255))
+    stored_filename: Mapped[str] = mapped_column(String(64), unique=True)
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int]
+    uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'))
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+
+    course: Mapped['Course'] = relationship(back_populates='materials')

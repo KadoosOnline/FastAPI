@@ -1,0 +1,18 @@
+meta {
+  name: Courses from 3 000 000 Toman
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/courses?min_price=3000000
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    res.body.items.forEach(c => expect(c.price).to.be.at.least(3000000));
+  });
+}

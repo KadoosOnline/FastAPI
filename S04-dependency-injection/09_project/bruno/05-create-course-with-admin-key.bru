@@ -1,0 +1,30 @@
+meta {
+  name: Create course with admin key
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "title": "Docker",
+    "price": 3000000,
+    "capacity": 15,
+    "instructor_id": 1
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

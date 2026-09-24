@@ -1,0 +1,27 @@
+meta {
+  name: Deactivate Reza
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{baseUrl}}/users/5
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "is_active": false
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

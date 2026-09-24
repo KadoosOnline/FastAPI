@@ -1,0 +1,17 @@
+meta {
+  name: Unknown level (422)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/courses?level=expert
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

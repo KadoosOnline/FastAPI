@@ -1,0 +1,18 @@
+meta {
+  name: Starting after 10 October
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/courses?starts_after=2026-10-10&sort=start_date
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.items[0].title).to.equal("FastAPI");
+  });
+}

@@ -1,0 +1,26 @@
+meta {
+  name: Replace course (PUT)
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/courses/1
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "Python Basics",
+    "price": 2600000,
+    "capacity": 18,
+    "level": "beginner"
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

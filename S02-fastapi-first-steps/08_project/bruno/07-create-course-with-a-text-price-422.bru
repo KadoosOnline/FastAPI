@@ -1,0 +1,25 @@
+meta {
+  name: Create course with a text price (422)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "Docker",
+    "price": "cheap",
+    "capacity": 15
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

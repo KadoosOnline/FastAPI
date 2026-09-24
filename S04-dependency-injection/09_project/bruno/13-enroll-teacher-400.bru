@@ -1,0 +1,23 @@
+meta {
+  name: Enroll teacher (400)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/courses/2/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "student_id": 1
+  }
+}
+
+tests {
+  test("status is 400", function() {
+    expect(res.status).to.equal(400);
+  });
+}

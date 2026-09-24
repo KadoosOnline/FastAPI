@@ -1,0 +1,24 @@
+meta {
+  name: Create user with bad email (422)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "reza-at-example",
+    "full_name": "Reza"
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

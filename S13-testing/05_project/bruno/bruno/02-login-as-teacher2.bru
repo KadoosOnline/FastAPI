@@ -1,0 +1,28 @@
+meta {
+  name: Login as teacher2
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  username: {{teacher2Email}}
+  password: {{password}}
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("teacher2Token", res.body.access_token);
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

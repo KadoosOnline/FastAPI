@@ -1,0 +1,17 @@
+meta {
+  name: Deleted course is gone (404)
+  type: http
+  seq: 18
+}
+
+get {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 404", function() {
+    expect(res.status).to.equal(404);
+  });
+}

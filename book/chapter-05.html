@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل پنج: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار. پایگاه داده رابطه‌ای، engine و Session، DeclarativeBase و Mapped، درج و پرس‌وجو، قیدها و پیش‌فرض‌ها، PostgreSQL با Docker، نشست برای هر درخواست">
+    <title>فصل ۵: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۵</span>
+        <h1>SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</h1>
+        <p class="lead">آموزشگاه حافظه واقعی پیدا می‌کند. شیوه امروزی و تایپ‌دار SQLAlchemy 2 را یاد می‌گیریم: DeclarativeBase، Mapped، mapped_column و select. جدول‌های کاربر، دوره و ثبت‌نام را می‌سازیم، ردیف درج و خواندن می‌کنیم، می‌گذاریم خود پایگاه داده قواعدش را اجرا کند و به هر درخواست FastAPI یک نشست می‌دهیم. در کلاس SQLite و در یک مثال PostgreSQL، که فقط نشانی اتصالش فرق دارد.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">چرا پایگاه داده رابطه‌ای</a></li>
+            <li><a href="#s2">موتور و نشست</a></li>
+            <li><a href="#s3">مدل‌ها: کلاس‌های پایتون که جدول را توصیف می‌کنند</a></li>
+            <li><a href="#s4">درج و پرس‌وجو</a></li>
+            <li><a href="#s5">قیدها و پیش‌فرض‌ها: پایگاه داده نه می‌گوید</a></li>
+            <li><a href="#s6">PostgreSQL با Docker: فقط نشانی عوض می‌شود</a></li>
+            <li><a href="#s7">FastAPI و پایگاه داده: یک نشست برای هر درخواست</a></li>
+            <li><a href="#s8">پروژه: API آموزشگاه روی پایگاه داده</a></li>
+            <li><a href="#s9">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. چرا پایگاه داده رابطه‌ای</h2>
+    <p>داده پروژه تا حالا در دیکشنری بود و با هر راه‌اندازی دوباره سرور پاک می‌شد. یک پایگاه داده رابطه‌ای داده را در <strong>جدول‌ها</strong> نگه می‌دارد: هر ردیف یک رکورد، هر ستون یک فیلد با نوع مشخص. <strong>کلید اصلی</strong> هر ردیف را یکتا می‌کند و <strong>کلید خارجی</strong> یک ردیف را به ردیف جدول دیگری وصل می‌کند. مهم‌تر از همه، پایگاه داده <strong>قواعد</strong> را اجرا می‌کند: ایمیل تکراری، قیمت منفی یا مدرسی که وجود ندارد را حتی اگر کد ما اشتباه کند نمی‌پذیرد.</p>
+    <p><strong>SQLAlchemy</strong> پرکاربردترین کتابخانه پایتون برای کار با این پایگاه‌هاست. در این دوره فقط نسخه ۲ و سبک <strong>تایپ‌دار</strong> آن را یاد می‌گیریم.</p>
+
+    <h2 id="s2">۲. موتور و نشست</h2>
+    <pre class="code"><code>from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+
+engine = create_engine(&#x27;sqlite:///training.db&#x27;, echo=True)
+
+
+def main() -&gt; None:
+    # `with` = context manager: the session is closed even if an error happens.
+    with Session(engine) as session:
+        version = session.execute(text(&#x27;select sqlite_version()&#x27;)).scalar_one()
+        print(&#x27;SQLite version:&#x27;, version)
+
+        session.execute(
+            text(&#x27;create table if not exists notes (id integer primary key, body text)&#x27;)
+        )
+        session.execute(text(&#x27;insert into notes (body) values (:body)&#x27;), {&#x27;body&#x27;: &#x27;hello&#x27;})
+        session.commit()
+
+        rows = session.execute(text(&#x27;select id, body from notes&#x27;)).all()
+        print(rows)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">Engine و Session: نمونه <bdi dir="ltr">01_engine_and_session/app.py</bdi></p>
+    <ul>
+        <li><strong>Engine</strong> یعنی «چطور به پایگاه داده برسیم». یک بار در کل برنامه ساخته می‌شود و مجموعه‌ای از اتصال‌ها را نگه می‌دارد. نشانی می‌گوید کدام پایگاه داده و کدام درایور: <code>sqlite:///training.db</code> یا <code>postgresql+psycopg://user:pass@localhost/db</code>.</li>
+        <li><strong>Session</strong> یعنی «یک گفت‌وگو با پایگاه داده». کوتاه‌عمر است: باز کن، کار کن، <code>commit</code> کن، ببند. در FastAPI برای هر درخواست یکی.</li>
+        <li><code>echo=True</code> هر دستور SQL را چاپ می‌کند. در زمان یادگیری روشنش بگذارید تا همیشه بدانید واقعاً چه اتفاقی می‌افتد.</li>
+    </ul>
+
+    <h2 id="s3">۳. مدل‌ها: کلاس‌های پایتون که جدول را توصیف می‌کنند</h2>
+    <pre class="code"><code>class Base(DeclarativeBase):
+    pass
+
+
+def utc_now() -&gt; datetime:
+    return datetime.now(UTC)
+
+
+class User(Base):
+    __tablename__ = &#x27;users&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default=&#x27;student&#x27;)
+    bio: Mapped[str | None] = mapped_column(Text)  # nullable, because of `| None`
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    price: Mapped[int]  # no mapped_column needed: the hint says everything
+    capacity: Mapped[int]
+    instructor_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;))</code></pre>
+    <p class="code-caption">DeclarativeBase، Mapped و mapped_column: نمونه <bdi dir="ltr">02_declarative_models/app.py</bdi></p>
+    <p>در سبک تایپ‌دار، <strong>راهنمای نوع خودِ تعریف ستون است</strong>:</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>نوع</th><th>ستون</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>Mapped[int]</code></td><td><code>INTEGER NOT NULL</code></td></tr>
+                <tr><td><code>Mapped[str | None]</code></td><td>ستونی که <code>NULL</code> می‌پذیرد</td></tr>
+                <tr><td><code>Mapped[datetime]</code></td><td>تاریخ و زمان</td></tr>
+                <tr><td><code>mapped_column(String(200), unique=True, index=True)</code></td><td>جزئیات: طول، یکتایی، نمایه</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>آموزش‌های قدیمی می‌نویسند <code>email = Column(String, unique=True)</code>. هنوز کار می‌کند، اما ویرایشگر و mypy نمی‌دانند <code>user.email</code> یک <code>str</code> است. با <code>Mapped[str]</code> می‌دانند: تکمیل خودکار و بررسی نوع، رایگان.</p>
+    <div class="note">
+        <span class="box-title">پل به فصل اول</span>
+        <p><code>Mapped[int]</code> همان جنریکی است که در فصل اول دیدیم: یک نوع که نوع دیگری را به عنوان پارامتر می‌گیرد.</p>
+    </div>
+
+    <h2 id="s4">۴. درج و پرس‌وجو</h2>
+    <pre class="code"><code>from sqlalchemy import String, create_engine, func, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    price: Mapped[int]
+    level: Mapped[str] = mapped_column(String(20), default=&#x27;beginner&#x27;)
+
+    def __repr__(self) -&gt; str:
+        return f&#x27;Course({self.id}, {self.title!r}, {self.price:,})&#x27;
+
+
+engine = create_engine(&#x27;sqlite:///training.db&#x27;)
+
+
+def main() -&gt; None:
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        python = Course(title=&#x27;Python Basics&#x27;, price=2_500_000)
+        session.add(python)
+        session.add_all(
+            [
+                Course(title=&#x27;FastAPI&#x27;, price=4_800_000, level=&#x27;advanced&#x27;),
+                Course(title=&#x27;HTML and CSS&#x27;, price=1_900_000),
+            ]
+        )
+        print(&#x27;before commit, id =&#x27;, python.id)
+        session.commit()
+        print(&#x27;after commit,  id =&#x27;, python.id)
+
+    with Session(engine) as session:
+        print(session.get(Course, 2))
+        print(session.get(Course, 99))
+
+        cheap = session.scalars(
+            select(Course).where(Course.price &lt; 3_000_000).order_by(Course.price)
+        )
+        print(cheap.all())
+
+        count = session.scalar(select(func.count()).select_from(Course))
+        print(&#x27;courses:&#x27;, count)
+
+        titles = session.scalars(select(Course.title).where(Course.level == &#x27;beginner&#x27;)).all()
+        print(titles)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">add، commit، get و select: نمونه <bdi dir="ltr">03_insert_and_query/app.py</bdi></p>
+    <pre class="out">before commit, id = None
+after commit,  id = 1
+Course(2, &#x27;FastAPI&#x27;, 4,800,000)
+None
+[Course(3, &#x27;HTML and CSS&#x27;, 1,900,000), Course(1, &#x27;Python Basics&#x27;, 2,500,000)]
+courses: 3</pre>
+    <p><code>select(Course)</code> فقط یک شیء پرس‌وجو می‌سازد و تا وقتی نشست اجرایش نکند هیچ چیزی اجرا نمی‌شود. بعد از <code>commit</code> شیءهای تازه <code>id</code> دارند.</p>
+
+    <h2 id="s5">۵. قیدها و پیش‌فرض‌ها: پایگاه داده نه می‌گوید</h2>
+    <p>Pydantic درخواست را بررسی می‌کند (فصل ۳). پایگاه داده آخرین خط دفاع است: داده را حتی در برابر باگ‌های خود ما و برنامه‌های دیگر حفظ می‌کند.</p>
+    <pre class="code"><code>class User(Base):
+    __tablename__ = &#x27;users&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+    __table_args__ = (
+        CheckConstraint(&#x27;price &gt;= 0&#x27;, name=&#x27;price_not_negative&#x27;),
+        CheckConstraint(&#x27;capacity &gt; 0&#x27;, name=&#x27;capacity_positive&#x27;),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    price: Mapped[int]
+    capacity: Mapped[int]
+    instructor_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;))
+
+
+engine = create_engine(&#x27;sqlite:///training.db&#x27;)
+
+
+@event.listens_for(engine, &#x27;connect&#x27;)
+def enable_foreign_keys(connection, _record) -&gt; None:  # type: ignore[no-untyped-def]
+    &quot;&quot;&quot;SQLite ignores foreign keys unless you ask. PostgreSQL always checks them.&quot;&quot;&quot;
+    connection.execute(&#x27;PRAGMA foreign_keys=ON&#x27;)
+
+
+def try_to_save(session: Session, obj: object) -&gt; None:
+    session.add(obj)
+    try:
+        session.commit()
+        print(&#x27;saved   &#x27;, obj.__class__.__name__)
+    except IntegrityError as error:
+        session.rollback()  # REQUIRED after a failed commit
+        print(&#x27;REFUSED &#x27;, error.orig)</code></pre>
+    <p class="code-caption">unique، CheckConstraint، ForeignKey و IntegrityError: نمونه <bdi dir="ltr">04_constraints_and_defaults/app.py</bdi></p>
+    <pre class="out">saved    User
+REFUSED  UNIQUE constraint failed: users.email
+REFUSED  CHECK constraint failed: price_not_negative
+REFUSED  FOREIGN KEY constraint failed
+saved    Course</pre>
+    <div class="warn">
+        <span class="box-title">بعد از IntegrityError حتماً rollback</span>
+        <p>وقتی <code>commit</code> شکست می‌خورد، نشست تا <code>session.rollback()</code> قابل استفاده نیست. در تمرین ۷ این را حذف کنید و پیام خطای بعدی را بخوانید.</p>
+    </div>
+    <div class="note">
+        <span class="box-title">SQLite و کلید خارجی</span>
+        <p>SQLite کلیدهای خارجی را بررسی نمی‌کند مگر اینکه بخواهید: <code>PRAGMA foreign_keys=ON</code>. PostgreSQL همیشه بررسی می‌کند. شنونده رویداد <code>connect</code> در این مثال و در پروژه همین کار را انجام می‌دهد.</p>
+    </div>
+
+    <h2 id="s6">۶. PostgreSQL با Docker: فقط نشانی عوض می‌شود</h2>
+    <pre class="code"><code># PostgreSQL in one command, without installing it:
+#   docker compose up -d        start in the background
+#   docker compose ps           is it &quot;healthy&quot;?
+#   docker compose down         stop (the data stays in the volume)
+#   docker compose down -v      stop and DELETE the data
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: training
+      POSTGRES_PASSWORD: training
+      POSTGRES_DB: training
+    ports:
+      - &quot;5432:5432&quot;
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [&quot;CMD-SHELL&quot;, &quot;pg_isready -U training&quot;]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:</code></pre>
+    <p class="code-caption">PostgreSQL با یک فرمان: <bdi dir="ltr">05_postgresql_with_docker/docker-compose.yml</bdi></p>
+    <pre class="out">docker compose up -d        # start in the background
+docker compose ps           # is it &quot;healthy&quot;?
+python app.py
+postgresql -&gt; [(1, &#x27;FastAPI&#x27;)]</pre>
+    <p>خطاهای رایج اتصال و معنای آنها:</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>پیام</th><th>معنی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>connection refused</code></td><td>پایگاه داده اجرا نمی‌شود (<code>docker compose ps</code>)</td></tr>
+                <tr><td><code>password authentication failed</code></td><td>نام کاربری یا رمز نشانی اشتباه است</td></tr>
+                <tr><td><code>database ... does not exist</code></td><td>نام پایگاه داده اشتباه است</td></tr>
+                <tr><td><code>No module named psycopg</code></td><td>کتابخانه‌ها نصب نشده‌اند</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s7">۷. FastAPI و پایگاه داده: یک نشست برای هر درخواست</h2>
+    <p>وابستگی <code>yield</code> فصل چهارم حالا یک نشست <strong>واقعی</strong> باز می‌کند:</p>
+    <pre class="code"><code>def get_db() -&gt; Iterator[Session]:
+    with SessionLocal() as session:
+        yield session
+
+
+DbSession = Annotated[Session, Depends(get_db)]
+Base.metadata.create_all(engine)
+app = FastAPI()
+
+
+@app.post(&#x27;/courses&#x27;, status_code=status.HTTP_201_CREATED)
+def create_course(data: CourseCreate, db: DbSession) -&gt; CourseRead:
+    course = Course(**data.model_dump())
+    db.add(course)
+    db.commit()
+    db.refresh(course)  # reload generated values (the id) from the database
+    return CourseRead.model_validate(course)
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses(db: DbSession) -&gt; list[CourseRead]:
+    courses = db.scalars(select(Course).order_by(Course.id)).all()
+    return [CourseRead.model_validate(course) for course in courses]
+
+
+@app.get(&#x27;/courses/{course_id}&#x27;)
+def get_course(course_id: int, db: DbSession) -&gt; CourseRead:
+    course = db.get(Course, course_id)
+    if course is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=&#x27;Course not found&#x27;)
+    return CourseRead.model_validate(course)</code></pre>
+    <p class="code-caption">get_db و endpointها: نمونه <bdi dir="ltr">06_fastapi_with_database/app.py</bdi></p>
+    <p>endpoint یک شیء ORM از پایگاه داده می‌گیرد و آن را از راه یک طرح‌واره Pydantic با <code>from_attributes=True</code> برمی‌گرداند. مدل ORM می‌گوید داده چگونه <strong>ذخیره</strong> می‌شود؛ طرح‌واره می‌گوید کلاینت چه <strong>می‌بیند</strong>. <code>db.refresh(course)</code> مقدارهای تولیدشده در پایگاه داده، مثل <code>id</code>، را دوباره می‌خواند.</p>
+
+    <h2 id="s8">۸. پروژه: API آموزشگاه روی پایگاه داده</h2>
+    <p><code>store.py</code> حذف می‌شود و دو فایل تازه جایش را می‌گیرند:</p>
+    <pre class="code"><code>from collections.abc import Iterator
+from datetime import datetime
+
+from sqlalchemy import DateTime, create_engine, event
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from app.config import get_settings
+
+settings = get_settings()
+engine = create_engine(settings.database_url, echo=settings.database_echo)
+SessionLocal = sessionmaker(engine)
+
+if engine.dialect.name == &#x27;sqlite&#x27;:
+
+    @event.listens_for(engine, &#x27;connect&#x27;)
+    def enable_sqlite_foreign_keys(connection, _record) -&gt; None:  # type: ignore[no-untyped-def]
+        connection.execute(&#x27;PRAGMA foreign_keys=ON&#x27;)
+
+
+class Base(DeclarativeBase):
+    # Every Mapped[datetime] column keeps the time zone (TIMESTAMP WITH TIME ZONE).
+    # Without it PostgreSQL stores &quot;naive&quot; times and asyncpg refuses aware ones.
+    type_annotation_map = {datetime: DateTime(timezone=True)}
+
+
+def get_db() -&gt; Iterator[Session]:
+    &quot;&quot;&quot;One session per request; closed (and rolled back if needed) afterwards.&quot;&quot;&quot;
+    with SessionLocal() as session:
+        yield session</code></pre>
+    <p class="code-caption">موتور، کارخانه نشست و Base: <bdi dir="ltr">07_project/app/database.py</bdi></p>
+    <pre class="code"><code>class User(Base):
+    __tablename__ = &#x27;users&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default=&#x27;student&#x27;)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+    __table_args__ = (
+        CheckConstraint(&#x27;price &gt;= 0&#x27;, name=&#x27;price_not_negative&#x27;),
+        CheckConstraint(&#x27;capacity &gt; 0&#x27;, name=&#x27;capacity_positive&#x27;),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str] = mapped_column(Text, default=&#x27;&#x27;)
+    price: Mapped[int]
+    capacity: Mapped[int]
+    level: Mapped[str] = mapped_column(String(20), default=&#x27;beginner&#x27;)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    instructor_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
+
+
+class Enrollment(Base):
+    __tablename__ = &#x27;enrollments&#x27;
+    __table_args__ = (
+        UniqueConstraint(&#x27;student_id&#x27;, &#x27;course_id&#x27;, name=&#x27;one_enrollment_per_course&#x27;),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;, ondelete=&#x27;CASCADE&#x27;))
+    course_id: Mapped[int] = mapped_column(ForeignKey(&#x27;courses.id&#x27;, ondelete=&#x27;CASCADE&#x27;))
+    status: Mapped[str] = mapped_column(String(20), default=&#x27;active&#x27;)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, server_default=func.now())</code></pre>
+    <p class="code-caption">کاربر، دوره و ثبت‌نام: <bdi dir="ltr">07_project/app/models.py</bdi></p>
+    <div class="note">
+        <span class="box-title">چرا DateTime(timezone=True)؟</span>
+        <p>پروژه زمان‌ها را به وقت جهانی (UTC) و <strong>با منطقه زمانی</strong> ذخیره می‌کند. <code>type_annotation_map</code> در کلاس <code>Base</code> باعث می‌شود هر <code>Mapped[datetime]</code> ستونی با منطقه زمانی بسازد. SQLite به این اهمیت نمی‌دهد، اما در فصل دوازدهم خواهید دید که PostgreSQL با درایور asyncpg بدون آن خطا می‌دهد.</p>
+    </div>
+    <p>سرویس‌ها حالا به جای دیکشنری یک <code>Session</code> می‌گیرند. امضای متدها، آرگومان‌ها و استثناها همان فصل چهارم است؛ فقط درونشان عوض شده و روترها هیچ تغییری نکرده‌اند.</p>
+    <pre class="code"><code>    def create(self, data: CourseCreate) -&gt; Course:
+        instructor = self.db.get(User, data.instructor_id)
+        if instructor is None or instructor.role != &#x27;instructor&#x27;:
+            raise BusinessRuleError(&#x27;instructor_id must be an instructor&#x27;)
+        course = Course(**data.model_dump())
+        self.db.add(course)
+        self.db.commit()
+        self.db.refresh(course)
+        return course</code></pre>
+    <p class="code-caption">ساختن دوره با نشست: <bdi dir="ltr">07_project/app/services.py</bdi></p>
+    <p>در این جلسه ساختن و خواندن کار می‌کند. ویرایش و حذف با SQLAlchemy موضوع فصل ششم است.</p>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S05-sqlalchemy-models</code> هفت پوشه دارد. هر نمونه <code>training.db</code> خودش را کنار <code>app.py</code> می‌سازد؛ برای شروع دوباره پاکش کنید. نمونه ۰۵ به Docker نیاز دارد. برای پروژه ابتدا <code>python seed.py</code> و بعد <code>python main.py</code> را اجرا کنید. برای دیدن محتوای پایگاه داده، <code>training.db</code> را در افزونه SQLite Viewer باز کنید.</p>
+    </div>
+
+    <h2 id="s9">۹. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>create_engine(url, echo=True)</code></td><td>یک بار در برنامه؛ مجموعه اتصال‌ها</td></tr>
+                <tr><td><code>Session</code> و <code>with</code></td><td>یک گفت‌وگو؛ همیشه بسته می‌شود</td></tr>
+                <tr><td><code>class Base(DeclarativeBase)</code></td><td>پایه همه مدل‌ها</td></tr>
+                <tr><td><code>Mapped[...]</code> و <code>mapped_column(...)</code></td><td>تعریف ستون با راهنمای نوع</td></tr>
+                <tr><td><code>Base.metadata.create_all(engine)</code></td><td>ساختن جدول‌های ناموجود (تا فصل ۸)</td></tr>
+                <tr><td><code>add</code>، <code>add_all</code>، <code>commit</code></td><td>درج در یک تراکنش</td></tr>
+                <tr><td><code>get</code>، <code>select(...).where(...)</code>، <code>scalars</code></td><td>خواندن</td></tr>
+                <tr><td><code>unique</code>، <code>CheckConstraint</code>، <code>ForeignKey</code></td><td>قواعد در خود پایگاه داده</td></tr>
+                <tr><td><code>IntegrityError</code> و <code>rollback()</code></td><td>وقتی پایگاه داده نه می‌گوید</td></tr>
+                <tr><td><code>get_db</code> با <code>yield</code></td><td>یک نشست برای هر درخواست</td></tr>
+                <tr><td><code>from_attributes=True</code></td><td>از مدل ORM به طرح‌واره</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>02_declarative_models</code> ستون‌های <code>phone: Mapped[str | None]</code> و <code>is_active</code> با پیش‌فرض اضافه کنید و در <code>CREATE TABLE</code> چاپ‌شده ببینید کدام <code>NOT NULL</code> است.</li>
+            <li>مدل <code>Course</code> را یک بار به سبک قدیمی <code>Column(...)</code> بنویسید و در VS Code روی <code>course.price</code> نگه دارید. ویرایشگر در هر حالت چه می‌داند؟</li>
+            <li>در <code>03_insert_and_query</code> گران‌ترین دوره، تعداد دوره‌های مقدماتی و همه عنوان‌ها به ترتیب الفبا را هر کدام با یک <code>select</code> پیدا کنید.</li>
+            <li><code>commit</code> اولین بلوک را حذف کنید و دوباره اجرا کنید. داده کجا رفت؟</li>
+            <li>در نمونه ۰۵ رمز، درگاه و نام پایگاه داده را یکی‌یکی اشتباه کنید و هر خطا را یادداشت کنید.</li>
+            <li>در پروژه <code>GET /users/{user_id}/enrollments</code> را با یک <code>select</code> و <code>where</code> اضافه کنید.</li>
+            <li>یک <code>CheckConstraint</code> برای <code>Enrollment.status</code> اضافه کنید که فقط <code>active</code>، <code>cancelled</code> و <code>completed</code> را بپذیرد.</li>
+            <li><code>DATABASE_ECHO=true</code> را در <code>.env</code> بگذارید و ببینید یک درخواست Bruno چند دستور SQL اجرا می‌کند.</li>
+            <li><strong>تکلیف:</strong> API کتابخانه را به SQLAlchemy ببرید: مدل‌های <code>Book</code>، <code>Member</code> و <code>Loan</code> با قیدهای مناسب (شابک یکتا، صفحه بیشتر از صفر)، یک <code>get_db</code> و یک <code>seed.py</code>.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-04.html">فصل قبل: تزریق وابستگی، ساختار، خطاها و تنظیمات</a>
+        <a href="chapter-06.html">فصل بعد: CRUD واقعی با SQLAlchemy 2</a>
+    </div>
+
+</main>
+
+</body>
+</html>

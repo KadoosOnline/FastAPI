@@ -1,0 +1,26 @@
+meta {
+  name: Create user without admin key (401)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "x@kadoos.ir",
+    "full_name": "X",
+    "password": "Teach2026",
+    "role": "admin"
+  }
+}
+
+tests {
+  test("status is 401", function() {
+    expect(res.status).to.equal(401);
+  });
+}

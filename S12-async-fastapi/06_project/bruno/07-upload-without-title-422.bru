@@ -1,0 +1,25 @@
+meta {
+  name: Upload without title (422)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/courses/1/materials
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:multipart-form {
+  file: @file(files/syllabus.pdf)
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

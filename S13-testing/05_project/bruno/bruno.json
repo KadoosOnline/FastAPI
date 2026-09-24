@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Session 13 - Training Center API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

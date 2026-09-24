@@ -1,0 +1,27 @@
+meta {
+  name: Another teacher changes it (403)
+  type: http
+  seq: 14
+}
+
+patch {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacher2Token}}
+}
+
+body:json {
+  {
+    "price": 1
+  }
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

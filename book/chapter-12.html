@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل دوازده: FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan. مسدودکننده در برابر ناهمگام، def و async def در FastAPI، gather در endpoint، AsyncSession، MissingGreenlet، lifespan، اشتباه‌های رایج">
+    <title>فصل ۱۲: FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۲</span>
+        <h1>FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan</h1>
+        <p class="lead">async و await دوره پیشرفته را مستقیم به یک بک‌اند واقعی وصل می‌کنیم. اندازه می‌گیریم async کجا کمک می‌کند، یعنی درخواست‌های زیادی که منتظر ورودی و خروجی‌اند، و کجا آسیب می‌زند، یعنی فراخوانی مسدودکننده درون async def. asyncio.gather را درون یک endpoint به کار می‌بریم، SQLAlchemy را به AsyncEngine و AsyncSession می‌بریم، منابع مشترک را با lifespan مدیریت می‌کنیم و اشتباه‌های کلاسیک را بازسازی می‌کنیم. بعد کل پروژه را ناهمگام می‌کنیم؛ پاسخ‌های API نباید ذره‌ای تغییر کنند.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">FastAPI هر endpoint را به یکی از دو روش اجرا می‌کند</a></li>
+            <li><a href="#s2">چند انتظار در یک درخواست</a></li>
+            <li><a href="#s3">SQLAlchemy ناهمگام</a></li>
+            <li><a href="#s4">lifespan: یک بار در شروع، یک بار در پایان</a></li>
+            <li><a href="#s5">اشتباه‌های رایج، بازسازی‌شده</a></li>
+            <li><a href="#s6">پروژه: ناهمگام از بالا تا پایین</a></li>
+            <li><a href="#s7">باگی که PostgreSQL پیدا کرد</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. FastAPI هر endpoint را به یکی از دو روش اجرا می‌کند</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>تعریف</th><th>کجا اجرا می‌شود</th><th>اگر مسدود کند</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>async def</code></td><td>روی حلقه رویداد</td><td><strong>کل سرور</strong> منجمد می‌شود</td></tr>
+                <tr><td><code>def</code></td><td>در یک مخزن نخ (حدود چهل نخ)</td><td>فقط همان نخ منتظر می‌ماند؛ اشکالی ندارد</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <pre class="code"><code>app = FastAPI()
+
+
+@app.get(&#x27;/async-good&#x27;)
+async def async_good() -&gt; dict[str, str]:
+    await asyncio.sleep(1)  # pretend: await an async DB query or HTTP call
+    return {&#x27;endpoint&#x27;: &#x27;async-good&#x27;}
+
+
+@app.get(&#x27;/sync-ok&#x27;)
+def sync_ok() -&gt; dict[str, str]:
+    time.sleep(1)  # pretend: a blocking library call -- fine in a thread
+    return {&#x27;endpoint&#x27;: &#x27;sync-ok&#x27;}
+
+
+@app.get(&#x27;/async-bad&#x27;)
+async def async_bad() -&gt; dict[str, str]:
+    time.sleep(1)  # WRONG: blocks the event loop for everybody
+    return {&#x27;endpoint&#x27;: &#x27;async-bad&#x27;}</code></pre>
+    <p class="code-caption">سه endpoint که هر کدام یک ثانیه صبر می‌کنند: <bdi dir="ltr">01_blocking_vs_async/app.py</bdi></p>
+    <p><code>load_test.py</code> به هر endpoint ده درخواست هم‌زمان می‌فرستد، درون همین فرایند و بدون سرور:</p>
+    <pre class="out">/async-good  10 requests took 1.0s
+/sync-ok     10 requests took 1.1s
+/async-bad   10 requests took 10.0s</pre>
+    <div class="warn">
+        <span class="box-title">قانون</span>
+        <p><code>async def</code> را فقط وقتی به کار ببرید که همه چیزهایی که درونش منتظرشان هستید <strong>await</strong> شوند. در غیر این صورت <code>def</code> ساده بنویسید. <code>time.sleep</code>، کتابخانه <code>requests</code> و درایور غیرناهمگام پایگاه داده درون <code>async def</code> ممنوع‌اند.</p>
+    </div>
+
+    <h2 id="s2">۲. چند انتظار در یک درخواست</h2>
+    <p>صفحه یک دوره سه چیز مستقل لازم دارد: خود دوره، وضعیت هوای شهر کلاس و نرخ ارز برای قیمت دلاری. سه انتظار مستقل:</p>
+    <pre class="code"><code>@app.get(&#x27;/courses/{course_id}/slow&#x27;)
+async def page_slow(course_id: int) -&gt; dict:
+    started = time.perf_counter()
+    course = await load_course(course_id)
+    weather = await load_weather(&#x27;Rasht&#x27;)
+    rate = await load_rate()
+    return build(course, weather, rate, started)
+
+
+@app.get(&#x27;/courses/{course_id}/fast&#x27;)
+async def page_fast(course_id: int) -&gt; dict:
+    started = time.perf_counter()
+    course, weather, rate = await asyncio.gather(
+        load_course(course_id), load_weather(&#x27;Rasht&#x27;), load_rate()
+    )
+    return build(course, weather, rate, started)</code></pre>
+    <p class="code-caption">ترتیبی در برابر gather: <bdi dir="ltr">02_concurrent_calls/app.py</bdi></p>
+    <pre class="out">02 slow 1202 ms | fast 501 ms</pre>
+    <p>ترتیبی یعنی <strong>مجموع</strong> انتظارها و <code>gather</code> یعنی <strong>طولانی‌ترین</strong> آنها. این همان جایی است که async در یک بک‌اند واقعاً سود می‌رساند: صدا زدن سرویس‌های دیگر.</p>
+
+    <h2 id="s3">۳. SQLAlchemy ناهمگام</h2>
+    <pre class="code"><code>engine = create_async_engine(&#x27;sqlite+aiosqlite:///async.db&#x27;)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = &#x27;users&#x27;
+    id: Mapped[int] = mapped_column(primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    courses: Mapped[list[&#x27;Course&#x27;]] = relationship(back_populates=&#x27;instructor&#x27;)
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    instructor_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;))
+    instructor: Mapped[User] = relationship(back_populates=&#x27;courses&#x27;)
+
+
+async def main() -&gt; None:
+    async with engine.begin() as connection:
+        # create_all is a sync function: run it inside the async connection
+        await connection.run_sync(Base.metadata.drop_all)
+        await connection.run_sync(Base.metadata.create_all)
+
+    async with SessionLocal() as session:
+        ali = User(full_name=&#x27;Ali Teacher&#x27;)
+        session.add_all(
+            [Course(title=&#x27;Python&#x27;, instructor=ali), Course(title=&#x27;FastAPI&#x27;, instructor=ali)]
+        )
+        await session.commit()
+        print(&#x27;after commit, still readable:&#x27;, ali.full_name)
+
+    async with SessionLocal() as session:
+        courses = (await session.scalars(select(Course))).all()
+        try:
+            print(courses[0].instructor.full_name)
+        except MissingGreenlet:
+            print(&#x27;lazy loading in async -&gt; MissingGreenlet!&#x27;)
+
+    async with SessionLocal() as session:
+        stmt = select(Course).options(selectinload(Course.instructor)).order_by(Course.id)
+        for course in await session.scalars(stmt):
+            print(f&#x27;{course.title} by {course.instructor.full_name}&#x27;)
+
+    await engine.dispose()</code></pre>
+    <p class="code-caption">AsyncSession، MissingGreenlet و selectinload: <bdi dir="ltr">03_async_sqlalchemy/app.py</bdi></p>
+    <ul>
+        <li>نشانی به یک درایور <strong>ناهمگام</strong> اشاره می‌کند: <code>sqlite+aiosqlite://</code> یا <code>postgresql+asyncpg://</code>.</li>
+        <li>هر کاری که ورودی و خروجی دارد await می‌شود: <code>commit</code>، <code>get</code>، <code>scalars</code>، <code>execute</code>، <code>delete</code>، <code>refresh</code>. اما <code>add</code> await نمی‌شود، چون فقط یک شیء را آماده می‌کند.</li>
+        <li><code>create_all</code> یک تابع همگام است؛ درون اتصال ناهمگام با <code>run_sync</code> اجرا می‌شود.</li>
+    </ul>
+    <div class="warn">
+        <span class="box-title">دو قاعده که همه را غافلگیر می‌کند</span>
+        <ol>
+            <li><strong>بارگذاری تنبل ممنوع است.</strong> <code>course.instructor</code> بدون بارگذاری پیشاپیش <code>MissingGreenlet</code> می‌دهد، چون در دسترسی به یک صفت جایی برای <code>await</code> نیست. رابطه‌ها را در خود پرس‌وجو بارگذاری کنید: <code>selectinload</code> یا <code>joinedload</code>.</li>
+            <li>**<code>expire_on_commit=False</code>**، وگرنه خواندن صفتی بعد از commit به یک بارگذاری دوباره تنبل (و ممنوع) نیاز دارد.</li>
+        </ol>
+    </div>
+
+    <h2 id="s4">۴. lifespan: یک بار در شروع، یک بار در پایان</h2>
+    <pre class="code"><code>@asynccontextmanager
+async def lifespan(app: FastAPI) -&gt; AsyncIterator[None]:
+    print(&#x27;starting: opening one shared HTTP client&#x27;)
+    app.state.http = httpx.AsyncClient(base_url=&#x27;https://jsonplaceholder.typicode.com&#x27;, timeout=5)
+    app.state.visits = 0
+    yield
+    print(&#x27;stopping: closing it&#x27;)
+    await app.state.http.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+def get_http(request: Request) -&gt; httpx.AsyncClient:
+    return request.app.state.http
+
+
+@app.get(&#x27;/users/{user_id}/todos&#x27;)
+async def todos(user_id: int, http: Annotated[httpx.AsyncClient, Depends(get_http)]) -&gt; dict:
+    try:
+        response = await http.get(&#x27;/todos&#x27;, params={&#x27;userId&#x27;: user_id})
+        response.raise_for_status()
+    except httpx.HTTPError as error:
+        return {&#x27;error&#x27;: f&#x27;upstream API failed: {error!r}&#x27;}
+    items = response.json()
+    return {&#x27;user_id&#x27;: user_id, &#x27;done&#x27;: sum(t[&#x27;completed&#x27;] for t in items), &#x27;total&#x27;: len(items)}
+
+
+@app.get(&#x27;/visits&#x27;)
+async def visits(request: Request) -&gt; dict[str, int]:
+    request.app.state.visits += 1
+    return {&#x27;visits&#x27;: request.app.state.visits}</code></pre>
+    <p class="code-caption">یک کلاینت HTTP مشترک روی app.state: <bdi dir="ltr">04_lifespan/app.py</bdi></p>
+    <p>منابع مشترک و گران اینجا ساخته می‌شوند: موتور پایگاه داده (مخزن اتصال‌هایش)، <strong>یک</strong> <code>httpx.AsyncClient</code> که همه درخواست‌ها از آن استفاده می‌کنند و کش‌ها. آنها را روی <code>app.state</code> می‌گذاریم و از یک وابستگی با <code>request.app</code> به آنها می‌رسیم.</p>
+
+    <h2 id="s5">۵. اشتباه‌های رایج، بازسازی‌شده</h2>
+    <pre class="code"><code>async def ticker(label: str) -&gt; None:
+    &quot;&quot;&quot;Should print every 0.1 s -- a long gap means the loop was blocked.&quot;&quot;&quot;
+    started = time.perf_counter()
+    for _ in range(5):
+        print(f&#x27;   tick ({label}) at {time.perf_counter() - started:.1f}s&#x27;)
+        await asyncio.sleep(0.1)
+
+
+async def mistake_1() -&gt; None:
+    print(&#x27;1. forgot await:&#x27;, fetch_price())  # a coroutine, and a RuntimeWarning later
+    print(&#x27;   with await:  &#x27;, await fetch_price())
+
+
+async def mistake_2_and_4() -&gt; None:
+    print(&#x27;2/4. heavy work directly in async code (ticks stop):&#x27;)
+    started = time.perf_counter()
+    await asyncio.gather(ticker(&#x27;blocked&#x27;), asyncio.sleep(0), _run_blocking())
+    print(f&#x27;   took {time.perf_counter() - started:.2f}s&#x27;)
+    print(&#x27;     the same work in a thread (ticks continue):&#x27;)
+    started = time.perf_counter()
+    await asyncio.gather(ticker(&#x27;free&#x27;), asyncio.to_thread(heavy_hashing))
+    print(f&#x27;   took {time.perf_counter() - started:.2f}s&#x27;)
+
+
+async def _run_blocking() -&gt; None:
+    heavy_hashing()  # no await inside: the loop can not switch away</code></pre>
+    <p class="code-caption">حلقه منجمد و کار سنگین در نخ: <bdi dir="ltr">05_common_mistakes/app.py</bdi></p>
+    <pre class="out">2/4. heavy work directly in async code (ticks stop):
+   tick (blocked) at 0.0s
+   tick (blocked) at 0.9s
+     the same work in a thread (ticks continue):
+   tick (free) at 0.0s
+   tick (free) at 0.1s
+3. one session shared by 5 tasks -&gt; {&#x27;InvalidRequestError&#x27;}
+   one session per task -&gt; [1, 1, 1, 1, 1]</pre>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>اشتباه</th><th>نتیجه</th><th>راه درست</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>فراموش کردن <code>await</code></td><td>یک شیء coroutine به جای نتیجه</td><td>همیشه await</td></tr>
+                <tr><td><code>time.sleep</code> یا <code>requests</code> درون async</td><td>کل سرور منجمد</td><td><code>asyncio.sleep</code>، <code>httpx.AsyncClient</code></td></tr>
+                <tr><td>یک <code>AsyncSession</code> برای چند وظیفه هم‌زمان</td><td><code>InvalidRequestError</code></td><td>یک نشست برای هر وظیفه</td></tr>
+                <tr><td>کار سنگین پردازشی درون async</td><td>حلقه منجمد</td><td><code>asyncio.to_thread</code> یا یک فرایند</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s6">۶. پروژه: ناهمگام از بالا تا پایین</h2>
+    <p>رفتار API <strong>هیچ</strong> تغییری نمی‌کند؛ مجموعه Bruno فصل یازدهم روی نسخه ناهمگام دقیقاً همان پاسخ‌ها را می‌گیرد.</p>
+    <pre class="code"><code>settings = get_settings()
+# The URL names an ASYNC driver: sqlite+aiosqlite:// or postgresql+asyncpg://
+engine = create_async_engine(settings.database_url, echo=settings.database_echo)
+# expire_on_commit=False: objects stay readable after commit (no lazy reload in async)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+if engine.dialect.name == &#x27;sqlite&#x27;:
+
+    @event.listens_for(engine.sync_engine, &#x27;connect&#x27;)
+    def enable_sqlite_foreign_keys(connection, _record) -&gt; None:  # type: ignore[no-untyped-def]
+        cursor = connection.cursor()
+        cursor.execute(&#x27;PRAGMA foreign_keys=ON&#x27;)
+        cursor.close()
+
+
+class Base(DeclarativeBase):
+    # Every Mapped[datetime] column keeps the time zone (TIMESTAMP WITH TIME ZONE).
+    # Without it PostgreSQL stores &quot;naive&quot; times and asyncpg refuses aware ones.
+    type_annotation_map = {datetime: DateTime(timezone=True)}
+
+
+async def get_db() -&gt; AsyncIterator[AsyncSession]:
+    &quot;&quot;&quot;One AsyncSession per request, closed afterwards.&quot;&quot;&quot;
+    async with SessionLocal() as session:
+        yield session</code></pre>
+    <p class="code-caption">موتور و نشست ناهمگام: <bdi dir="ltr">06_project/app/database.py</bdi></p>
+    <pre class="code"><code>    async def enroll(self, course_id: int, student_id: int) -&gt; Enrollment:
+        course = await CourseService(self.db).get(course_id)
+        student = await UserService(self.db).get(student_id)
+        if student.role != &#x27;student&#x27; or not student.is_active:
+            raise BusinessRuleError(&#x27;Only active students can enroll&#x27;)
+        if not course.is_active:
+            raise BusinessRuleError(&#x27;This course is closed&#x27;)
+        enrollment = await self._find(course_id, student_id)
+        if enrollment is not None and enrollment.status == &#x27;active&#x27;:
+            raise ConflictError(&#x27;Already enrolled&#x27;)
+        if await self.active_count(course_id) &gt;= course.capacity:
+            raise ConflictError(&#x27;Course is full&#x27;)
+        if enrollment is None:
+            enrollment = Enrollment(course_id=course_id, student_id=student_id)
+            self.db.add(enrollment)
+        else:
+            enrollment.status = &#x27;active&#x27;
+        await self.db.commit()
+        await self.db.refresh(enrollment)
+        return enrollment</code></pre>
+    <p class="code-caption">همان قاعده ثبت‌نام، حالا با await: <bdi dir="ltr">06_project/app/services.py</bdi></p>
+    <pre class="code"><code>    async def courses_taught(self, user_id: int) -&gt; list[Course]:
+        # `user.courses_taught` would be a lazy load -&gt; not allowed in async: query instead
+        await self.get(user_id)
+        stmt = select(Course).where(Course.instructor_id == user_id).order_by(Course.title)
+        return list(await self.db.scalars(stmt))</code></pre>
+    <p class="code-caption">صفت رابطه‌ای در async جایش را به یک پرس‌وجو می‌دهد: <bdi dir="ltr">06_project/app/services.py</bdi></p>
+    <ul>
+        <li>روترها <code>async def</code> هستند و سرویس‌ها را await می‌کنند.</li>
+        <li>ذخیره فایل با <code>await upload.read()</code> و نوشتن روی دیسک از راه <code>anyio</code> انجام می‌شود تا حلقه مسدود نشود.</li>
+        <li>lifespan موتور را در پایان می‌بندد. <code>alembic/env.py</code> و <code>seed.py</code> هم ناهمگام شده‌اند.</li>
+    </ul>
+
+    <h2 id="s7">۷. باگی که PostgreSQL پیدا کرد</h2>
+    <p>مدل‌ها <code>Mapped[datetime]</code> داشتند که <code>TIMESTAMP WITHOUT TIME ZONE</code> می‌سازد، در حالی که کد زمان‌های UTC <strong>با منطقه زمانی</strong> ذخیره می‌کرد. SQLite اهمیتی نمی‌دهد و درایور همگام psycopg بی‌صدا تبدیل می‌کند. اما asyncpg نمی‌پذیرد:</p>
+    <pre class="out">can&#x27;t subtract offset-naive and offset-aware datetimes</pre>
+    <p>راه‌حل یک خط در کلاس <code>Base</code> است که حالا در همه پروژه‌ها از فصل پنجم هست:</p>
+    <pre class="code"><code>class Base(DeclarativeBase):
+    type_annotation_map = {datetime: DateTime(timezone=True)}</code></pre>
+    <div class="tip">
+        <span class="box-title">درس</span>
+        <p>روی همان پایگاه داده‌ای آزمون کنید که برنامه روی آن اجرا خواهد شد.</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S12-async-fastapi</code> شش پوشه دارد. نمونه ۰۱ را با <code>python load_test.py</code> اجرا کنید. برای PostgreSQL با async، <code>asyncpg</code> را نصب کنید و در <code>DATABASE_URL</code> نشانی <code>postgresql+asyncpg://...</code> بگذارید. پروژه: <code>alembic upgrade head</code>، <code>python seed.py</code>، <code>python main.py</code>.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>async def</code> در برابر <code>def</code></td><td>حلقه رویداد در برابر مخزن نخ</td></tr>
+                <tr><td><code>asyncio.gather</code></td><td>چند انتظار هم‌زمان در یک درخواست</td></tr>
+                <tr><td><code>create_async_engine</code>، <code>async_sessionmaker</code></td><td>موتور و نشست ناهمگام</td></tr>
+                <tr><td><code>aiosqlite</code>، <code>asyncpg</code></td><td>درایورهای ناهمگام</td></tr>
+                <tr><td><code>selectinload</code>، <code>joinedload</code></td><td>تنها راه بارگذاری رابطه در async</td></tr>
+                <tr><td><code>expire_on_commit=False</code></td><td>شیء بعد از commit هم خواندنی است</td></tr>
+                <tr><td><code>run_sync</code></td><td>اجرای کد همگام SQLAlchemy در اتصال ناهمگام</td></tr>
+                <tr><td><code>lifespan</code> و <code>app.state</code></td><td>منابع مشترک برنامه</td></tr>
+                <tr><td><code>asyncio.to_thread</code>، <code>anyio</code></td><td>کار مسدودکننده بیرون از حلقه</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>load_test.py</code> پنجاه درخواست به جای ده بفرستید. چرا <code>/sync-ok</code> از جایی به بعد کند می‌شود؟</li>
+            <li>endpoint <code>/async-requests</code> بسازید که با کتابخانه <code>requests</code> درون <code>async def</code> یک نشانی کند را صدا بزند. اندازه بگیرید و با <code>httpx.AsyncClient</code> درستش کنید.</li>
+            <li>در <code>02_concurrent_calls</code> کاری کنید که <code>load_weather</code> شکست بخورد. با <code>gather</code> کل درخواست چه می‌شود؟ طوری تغییرش دهید که صفحه بدون هوا هم بارگذاری شود.</li>
+            <li>در <code>03_async_sqlalchemy</code> همه کاربران را با دوره‌هایشان با <code>selectinload(User.courses)</code> بگیرید.</li>
+            <li><strong>خودتان تبدیل کنید:</strong> از <code>S11-files-cookies-cors/09_project</code> شروع کنید و لایه به لایه ناهمگامش کنید و بعد از هر لایه مجموعه Bruno را اجرا کنید.</li>
+            <li><code>GET /courses/{id}/overview</code> بنویسید که جزئیات دوره، دانشجویان و فایل‌هایش را هم‌زمان با <code>gather</code> بارگذاری کند. چرا به سه نشست جدا نیاز دارید؟</li>
+            <li>پروژه را روی PostgreSQL با asyncpg اجرا کنید و مجموعه Bruno را دوباره اجرا کنید.</li>
+            <li><strong>تکلیف:</strong> کتابخانه را ناهمگام کنید، یک lifespan با یک <code>httpx.AsyncClient</code> مشترک بگذارید و <code>GET /books/{isbn}/details</code> بسازید که ردیف کتاب را با اطلاعات یک API عمومی کتاب ترکیب کند، با مهلت سه‌ثانیه‌ای و پاسخ آبرومند وقتی آن API در دسترس نیست.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-11.html">فصل قبل: هدر، کوکی، فرم، فایل و CORS</a>
+        <a href="chapter-13.html">فصل بعد: آزمون خودکار API با pytest</a>
+    </div>
+
+</main>
+
+</body>
+</html>

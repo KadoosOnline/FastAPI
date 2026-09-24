@@ -1,0 +1,17 @@
+meta {
+  name: Beginner courses
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/courses?level=beginner
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

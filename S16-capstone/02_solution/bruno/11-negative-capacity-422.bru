@@ -1,0 +1,27 @@
+meta {
+  name: Negative capacity (422)
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/courses/3
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:json {
+  {
+    "capacity": -3
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

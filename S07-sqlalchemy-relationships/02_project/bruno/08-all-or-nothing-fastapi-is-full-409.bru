@@ -1,0 +1,26 @@
+meta {
+  name: All or nothing - FastAPI is full (409)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/users/{{nimaId}}/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "course_ids": [
+      2,
+      3
+    ]
+  }
+}
+
+tests {
+  test("status is 409", function() {
+    expect(res.status).to.equal(409);
+  });
+}

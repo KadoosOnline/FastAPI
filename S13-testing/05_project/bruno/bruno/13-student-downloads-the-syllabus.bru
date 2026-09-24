@@ -1,0 +1,22 @@
+meta {
+  name: Student downloads the syllabus
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/materials/{{materialId}}/download
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.headers["content-disposition"]).to.contain("syllabus.pdf");
+  });
+}

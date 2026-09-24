@@ -1,0 +1,17 @@
+meta {
+  name: Search text too short (422)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/courses?q=p
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Admin deletes course
+  type: http
+  seq: 25
+}
+
+delete {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+tests {
+  test("status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

@@ -1,0 +1,29 @@
+meta {
+  name: Create post (JSON body)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{publicApi}}/posts
+  body: json
+  auth: none
+}
+
+headers {
+  Accept: application/json
+}
+
+body:json {
+  {
+    "title": "Hello from Bruno",
+    "body": "My first POST request",
+    "userId": 1
+  }
+}
+
+tests {
+  test("201 Created", function() {
+    expect(res.status).to.equal(201);
+  });
+}

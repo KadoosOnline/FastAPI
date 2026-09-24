@@ -1,0 +1,27 @@
+meta {
+  name: PUT with missing fields (422)
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "price": 1
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

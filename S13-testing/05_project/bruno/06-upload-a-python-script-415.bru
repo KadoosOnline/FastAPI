@@ -1,0 +1,26 @@
+meta {
+  name: Upload a Python script (415)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/courses/1/materials
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:multipart-form {
+  title: Script
+  file: @file(files/script.py)
+}
+
+tests {
+  test("status is 415", function() {
+    expect(res.status).to.equal(415);
+  });
+}

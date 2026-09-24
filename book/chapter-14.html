@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل چهارده: ساختن یک کلاینت REST پایتونی با HTTPX. کلاینت و سرور، requests و HTTPX، params و json و data، مهلت زمانی، خطای انتقال و خطای وضعیت، Bearer، کلاس کلاینت، MockTransport">
+    <title>فصل ۱۴: ساختن یک کلاینت REST پایتونی با HTTPX</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۴</span>
+        <h1>ساختن یک کلاینت REST پایتونی با HTTPX</h1>
+        <p class="lead">جایمان را عوض می‌کنیم. تا حالا سرور ساختیم؛ حالا برنامه‌ای می‌نویسیم که از آن <strong>استفاده</strong> می‌کند. HTTPX را از نگاه کلاینت یاد می‌گیریم: روش‌ها، پارامترهای پرس‌وجو، بدنه JSON و فرم، هدرها، مهلت زمانی، توکن Bearer و مدیریت خطا. بعد درخواست‌های پراکنده را به یک کلاس کلاینت واقعی، قابل استفاده دوباره و تایپ‌دار برای API آموزشگاه تبدیل می‌کنیم.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">از آن سوی میز</a></li>
+            <li><a href="#s2">پنج روش از سمت کلاینت</a></li>
+            <li><a href="#s3">پارامتر، هدر، JSON و فرم</a></li>
+            <li><a href="#s4">مهلت زمانی و خطاها</a></li>
+            <li><a href="#s5">ورود و توکن Bearer از سمت کلاینت</a></li>
+            <li><a href="#s6">از درخواست‌های پراکنده تا یک کلاس</a></li>
+            <li><a href="#s7">پروژه: کلاینت آموزشگاه</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. از آن سوی میز</h2>
+    <p>کلاینت هر برنامه‌ای است که درخواست می‌فرستد: مرورگر، برنامه موبایل، Bruno یا یک اسکریپت پایتون. HTTPX برای کلاینت همان کاری را می‌کند که FastAPI برای سرور.</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>requests</th><th>HTTPX</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>requests.get(url)</code></td><td><code>httpx.get(url)</code></td></tr>
+                <tr><td>بدون مهلت پیش‌فرض: تا ابد صبر می‌کند</td><td>مهلت پیش‌فرض دارد</td></tr>
+                <tr><td>فقط همگام</td><td>همگام و ناهمگام (<code>AsyncClient</code>)</td></tr>
+                <tr><td>HTTP/1.1</td><td>HTTP/1.1 و HTTP/2</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s2">۲. پنج روش از سمت کلاینت</h2>
+    <pre class="code"><code>import httpx
+
+BASE_URL = &#x27;https://jsonplaceholder.typicode.com&#x27;
+
+
+def main() -&gt; None:
+    with httpx.Client(base_url=BASE_URL, timeout=10) as client:
+        response = client.get(&#x27;/posts/1&#x27;)
+        print(&#x27;GET    &#x27;, response.status_code, response.json()[&#x27;title&#x27;][:40])
+
+        response = client.post(&#x27;/posts&#x27;, json={&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;body&#x27;: &#x27;course&#x27;, &#x27;userId&#x27;: 1})
+        print(&#x27;POST   &#x27;, response.status_code, response.json())
+
+        response = client.put(&#x27;/posts/1&#x27;, json={&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;new&#x27;, &#x27;body&#x27;: &#x27;b&#x27;, &#x27;userId&#x27;: 1})
+        print(&#x27;PUT    &#x27;, response.status_code, response.json()[&#x27;title&#x27;])
+
+        response = client.patch(&#x27;/posts/1&#x27;, json={&#x27;title&#x27;: &#x27;only the title&#x27;})
+        print(&#x27;PATCH  &#x27;, response.status_code, response.json()[&#x27;title&#x27;])
+
+        response = client.delete(&#x27;/posts/1&#x27;)
+        print(&#x27;DELETE &#x27;, response.status_code)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    try:
+        main()
+    except httpx.TransportError as error:
+        print(f&#x27;No internet? {error!r}&#x27;)</code></pre>
+    <p class="code-caption">GET، POST، PUT، PATCH، DELETE: نمونه <bdi dir="ltr">01_httpx_basics/app.py</bdi></p>
+    <p><code>httpx.get(url)</code> برای هر درخواست یک اتصال باز و بسته می‌کند. <code>with httpx.Client(base_url=...)</code> یک <strong>نشست</strong> است: یک مخزن اتصال، با تنظیمات مشترک برای همه درخواست‌ها.</p>
+
+    <h2 id="s3">۳. پارامتر، هدر، JSON و فرم</h2>
+    <pre class="code"><code>import httpx
+
+
+def main() -&gt; None:
+    with httpx.Client(
+        base_url=&#x27;https://jsonplaceholder.typicode.com&#x27;,
+        headers={&#x27;User-Agent&#x27;: &#x27;kadoos-course-client/1.0&#x27;},  # sent with EVERY request
+        timeout=10,
+    ) as client:
+        response = client.get(&#x27;/comments&#x27;, params={&#x27;postId&#x27;: 1, &#x27;_limit&#x27;: 3})
+        print(response.request.url)
+        print(response.status_code, response.headers[&#x27;content-type&#x27;])
+        print(f&#x27;took {response.elapsed.total_seconds() * 1000:.0f} ms&#x27;)
+        for comment in response.json():
+            print(&#x27; -&#x27;, comment[&#x27;email&#x27;])
+
+        response = client.post(&#x27;/posts&#x27;, json={&#x27;title&#x27;: &#x27;Hello&#x27;, &#x27;body&#x27;: &#x27;from httpx&#x27;, &#x27;userId&#x27;: 7})
+        print(response.request.headers[&#x27;content-type&#x27;], &#x27;-&gt;&#x27;, response.json())
+
+        form = client.post(&#x27;/posts&#x27;, data={&#x27;title&#x27;: &#x27;as a form&#x27;})
+        print(form.request.headers[&#x27;content-type&#x27;])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    try:
+        main()
+    except httpx.TransportError as error:
+        print(f&#x27;No internet? {error!r}&#x27;)</code></pre>
+    <p class="code-caption">ساختن درخواست و خواندن پاسخ: نمونه <bdi dir="ltr">02_params_headers_json/app.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>نوشتن</th><th>نتیجه</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>params={&#x27;postId&#x27;: 1}</code></td><td><code>?postId=1</code>، با escape خودکار</td></tr>
+                <tr><td><code>json={...}</code></td><td>بدنه JSON و <code>Content-Type: application/json</code></td></tr>
+                <tr><td><code>data={...}</code></td><td>فرم HTML، مثل <code>/auth/token</code></td></tr>
+                <tr><td><code>files={&#x27;file&#x27;: (...)}</code></td><td>بارگذاری multipart</td></tr>
+                <tr><td><code>headers={...}</code></td><td>هدرهای یک درخواست</td></tr>
+                <tr><td><code>Client(headers=...)</code></td><td>هدرهایی که با <strong>همه</strong> درخواست‌ها می‌روند</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s4">۴. مهلت زمانی و خطاها</h2>
+    <p>یک کلاینت باید انتظار شکست را داشته باشد. دو نوع شکست کاملاً متفاوت داریم:</p>
+    <ol>
+        <li><strong>هیچ پاسخی نیامد:</strong> HTTPX استثنا می‌دهد. <code>httpx.ConnectError</code> یعنی سرور خاموش است یا نشانی اشتباه است و <code>httpx.TimeoutException</code> یعنی سرور بیش از حد کند است. هر دو زیرکلاس <code>httpx.TransportError</code> هستند.</li>
+        <li><strong>پاسخی با کد خطا آمد:</strong> به‌طور پیش‌فرض استثنا <strong>نیست</strong>. <code>response.is_success</code> را بررسی کنید یا <code>raise_for_status()</code> بزنید.</li>
+    </ol>
+    <pre class="code"><code>import httpx
+
+
+def fake_server(request: httpx.Request) -&gt; httpx.Response:
+    if request.url.path == &#x27;/slow&#x27;:
+        raise httpx.ReadTimeout(&#x27;the server did not answer in time&#x27;, request=request)
+    if request.url.path == &#x27;/down&#x27;:
+        raise httpx.ConnectError(&#x27;connection refused&#x27;, request=request)
+    if request.url.path == &#x27;/courses/1&#x27;:
+        return httpx.Response(200, json={&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;FastAPI&#x27;})
+    if request.url.path == &#x27;/broken&#x27;:
+        return httpx.Response(500, text=&#x27;Internal Server Error&#x27;)
+    return httpx.Response(404, json={&#x27;detail&#x27;: &#x27;Not found&#x27;})
+
+
+def fetch(client: httpx.Client, path: str) -&gt; None:
+    try:
+        response = client.get(path)
+        response.raise_for_status()
+    except httpx.TimeoutException:
+        print(f&#x27;{path:&lt;12} timeout        -&gt; try again later&#x27;)
+    except httpx.ConnectError:
+        print(f&#x27;{path:&lt;12} no connection  -&gt; is the server running?&#x27;)
+    except httpx.HTTPStatusError as error:
+        status = error.response.status_code
+        kind = &#x27;our mistake (4xx)&#x27; if status &lt; 500 else &#x27;server problem (5xx)&#x27;
+        print(f&#x27;{path:&lt;12} HTTP {status}       -&gt; {kind}&#x27;)
+    else:
+        print(f&#x27;{path:&lt;12} OK             -&gt; {response.json()}&#x27;)
+
+
+def main() -&gt; None:
+    timeout = httpx.Timeout(5.0, connect=2.0)  # 2 s to connect, 5 s for the rest
+    with httpx.Client(
+        base_url=&#x27;http://api.test&#x27;, transport=httpx.MockTransport(fake_server), timeout=timeout
+    ) as client:
+        for path in [&#x27;/courses/1&#x27;, &#x27;/courses/99&#x27;, &#x27;/broken&#x27;, &#x27;/slow&#x27;, &#x27;/down&#x27;]:
+            fetch(client, path)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">همه نوع شکست، شبیه‌سازی‌شده با MockTransport: نمونه <bdi dir="ltr">03_timeouts_and_errors/app.py</bdi></p>
+    <pre class="out">/courses/1   OK             -&gt; {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;FastAPI&#x27;}
+/courses/99  HTTP 404       -&gt; our mistake (4xx)
+/broken      HTTP 500       -&gt; server problem (5xx)
+/slow        timeout        -&gt; try again later
+/down        no connection  -&gt; is the server running?</pre>
+    <p><code>httpx.MockTransport</code> پاسخ‌های جعلی برمی‌گرداند، پس این مثال به سرور و اینترنت نیاز ندارد. آزمون‌های کلاینت همین ترفند را استفاده می‌کنند.</p>
+
+    <h2 id="s5">۵. ورود و توکن Bearer از سمت کلاینت</h2>
+    <pre class="code"><code>class BearerAuth(httpx.Auth):
+    &quot;&quot;&quot;Adds the Authorization header to every request of a client.&quot;&quot;&quot;
+
+    def __init__(self, token: str) -&gt; None:
+        self.token = token
+
+    def auth_flow(self, request: httpx.Request):  # type: ignore[no-untyped-def]
+        request.headers[&#x27;Authorization&#x27;] = f&#x27;Bearer {self.token}&#x27;
+        yield request
+
+
+def main() -&gt; None:
+    with httpx.Client(base_url=API, timeout=5) as client:
+        print(&#x27;without token:&#x27;, client.get(&#x27;/users/me&#x27;).status_code)
+
+        login = client.post(
+            &#x27;/auth/token&#x27;, data={&#x27;username&#x27;: &#x27;sara@example.com&#x27;, &#x27;password&#x27;: &#x27;Password123&#x27;}
+        )
+        login.raise_for_status()
+        token = login.json()[&#x27;access_token&#x27;]
+        print(&#x27;token starts with&#x27;, token[:20], &#x27;...&#x27;)
+
+        me = client.get(&#x27;/users/me&#x27;, headers={&#x27;Authorization&#x27;: f&#x27;Bearer {token}&#x27;})
+        print(&#x27;by hand      :&#x27;, me.json()[&#x27;full_name&#x27;])
+
+    with httpx.Client(base_url=API, timeout=5, auth=BearerAuth(token)) as client:
+        print(&#x27;with Auth    :&#x27;, client.get(&#x27;/users/me&#x27;).json()[&#x27;email&#x27;])
+        print(
+            &#x27;my courses   :&#x27;,
+            [e[&#x27;course&#x27;][&#x27;title&#x27;] for e in client.get(&#x27;/users/me/enrollments&#x27;).json()],
+        )</code></pre>
+    <p class="code-caption">فرم ورود، ذخیره توکن و httpx.Auth: نمونه <bdi dir="ltr">04_bearer_auth/app.py</bdi></p>
+    <p>یک کلاس کوچک <code>httpx.Auth</code> هدر مجوز را یک بار برای کل کلاینت اضافه می‌کند. پروژه از همین شیوه استفاده می‌کند.</p>
+    <div class="note">
+        <span class="box-title">سرور کجاست؟</span>
+        <p>نمونه‌های ۰۴ و ۰۵ و <code>demo.py</code> پروژه با API فصل سیزدهم صحبت می‌کنند. آن را در یک <strong>ترمینال دوم</strong> اجرا کنید: <code>cd ../S13-testing/05_project</code>، بعد <code>alembic upgrade head</code>، <code>python seed.py</code> و <code>python main.py</code>.</p>
+    </div>
+
+    <h2 id="s6">۶. از درخواست‌های پراکنده تا یک کلاس</h2>
+    <p>اسکریپت‌هایی پر از <code>httpx.get(f&#x27;{API}/courses/{id}&#x27;)</code> نشانی پایه، هدرها و بررسی خطا را همه‌جا تکرار می‌کنند. یک کلاس کلاینت همه این‌ها را در یک جا نگه می‌دارد و متدهایی با نام‌های کسب‌وکار ارائه می‌دهد که شیء تایپ‌دار برمی‌گردانند، نه دیکشنری خام:</p>
+    <pre class="code"><code>@dataclass(frozen=True)
+class Course:
+    id: int
+    title: str
+    price: int
+
+
+class CoursesClient:
+    def __init__(self, base_url: str, timeout: float = 5.0) -&gt; None:
+        self._http = httpx.Client(base_url=base_url, timeout=timeout)
+
+    # context manager: `with CoursesClient(...) as api:` closes the connections
+    def __enter__(self) -&gt; Self:
+        return self
+
+    def __exit__(self, *exc: type[BaseException] | BaseException | TracebackType | None) -&gt; None:
+        self._http.close()
+
+    def list_courses(self, q: str | None = None) -&gt; list[Course]:
+        params = {&#x27;q&#x27;: q} if q else {}
+        response = self._http.get(&#x27;/courses&#x27;, params=params)
+        response.raise_for_status()
+        return [Course(c[&#x27;id&#x27;], c[&#x27;title&#x27;], c[&#x27;price&#x27;]) for c in response.json()[&#x27;items&#x27;]]
+
+    def get_course(self, course_id: int) -&gt; Course | None:
+        response = self._http.get(f&#x27;/courses/{course_id}&#x27;)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        data = response.json()
+        return Course(data[&#x27;id&#x27;], data[&#x27;title&#x27;], data[&#x27;price&#x27;])</code></pre>
+    <p class="code-caption">نسخه اول کلاس: نمونه <bdi dir="ltr">05_client_class/app.py</bdi></p>
+
+    <h2 id="s7">۷. پروژه: کلاینت آموزشگاه</h2>
+    <pre class="out">06_project/
+├── clients/
+│   ├── errors.py                    استثناهای کلاینت و نگاشت کد وضعیت
+│   ├── models.py                    مدل‌های تایپ‌دار JSON، مال خود کلاینت
+│   └── training_center_client.py    کلاس TrainingCenterClient
+├── demo.py                          استفاده واقعی در برابر سرور فصل ۱۳
+└── tests/test_client.py             چهارده آزمون با MockTransport</pre>
+    <pre class="code"><code>    def _request(self, method: str, path: str, **kwargs: Any) -&gt; httpx.Response:
+        try:
+            response = self._http.request(method, path, **kwargs)
+        except httpx.TimeoutException as error:
+            raise ApiConnectionError(f&#x27;{method} {path} timed out&#x27;) from error
+        except httpx.TransportError as error:
+            raise ApiConnectionError(f&#x27;{method} {path} failed: {error}&#x27;) from error
+        if response.is_error:
+            raise error_from_response(response)
+        return response
+
+    # --- authentication ------------------------------------------------
+    def register(self, email: str, full_name: str, password: str) -&gt; User:
+        body = {&#x27;email&#x27;: email, &#x27;full_name&#x27;: full_name, &#x27;password&#x27;: password}
+        return User.model_validate(self._request(&#x27;POST&#x27;, &#x27;/auth/register&#x27;, json=body).json())
+
+    def login(self, email: str, password: str) -&gt; Token:
+        &quot;&quot;&quot;OAuth2 password flow: a FORM, not JSON. The token is kept for later calls.&quot;&quot;&quot;
+        response = self._request(
+            &#x27;POST&#x27;, &#x27;/auth/token&#x27;, data={&#x27;username&#x27;: email, &#x27;password&#x27;: password}
+        )
+        token = Token.model_validate(response.json())
+        self.token = token.access_token
+        return token
+
+    def logout(self) -&gt; None:
+        &quot;&quot;&quot;JWTs live on the client: logging out = forgetting the token.&quot;&quot;&quot;
+        self.token = None
+
+    def me(self) -&gt; User:
+        return User.model_validate(self._request(&#x27;GET&#x27;, &#x27;/users/me&#x27;).json())</code></pre>
+    <p class="code-caption">یک جا برای فرستادن و خطا، و ورود: <bdi dir="ltr">clients/training_center_client.py</bdi></p>
+    <pre class="code"><code>    def iter_courses(self, *, size: int = 50, **filters: Any) -&gt; Iterator[Course]:
+        &quot;&quot;&quot;A generator over EVERY page: callers never think about pagination.&quot;&quot;&quot;
+        page = 1
+        while True:
+            result = self.list_courses(page=page, size=size, **filters)
+            yield from result.items
+            if page &gt;= result.pages:
+                return
+            page += 1</code></pre>
+    <p class="code-caption">مولدی که صفحه‌بندی را پنهان می‌کند: <bdi dir="ltr">clients/training_center_client.py</bdi></p>
+    <pre class="code"><code>_STATUS_TO_ERROR: dict[int, type[ApiError]] = {
+    401: AuthenticationFailed,
+    403: PermissionDenied,
+    404: NotFound,
+    409: ConflictError,
+    422: ValidationFailed,
+}
+
+
+def error_from_response(response: httpx.Response) -&gt; ApiError:
+    &quot;&quot;&quot;Build the most specific `ApiError` subclass for an error response.&quot;&quot;&quot;
+    try:
+        body = response.json()
+    except ValueError:
+        body = {&#x27;detail&#x27;: response.text or response.reason_phrase}
+    detail = body.get(&#x27;detail&#x27;, body) if isinstance(body, dict) else body
+    code = body.get(&#x27;code&#x27;) if isinstance(body, dict) else None
+    status = response.status_code
+    error_class = _STATUS_TO_ERROR.get(status, ServerError if status &gt;= 500 else ApiError)
+    return error_class(
+        status, detail, code, method=response.request.method, url=str(response.request.url)
+    )</code></pre>
+    <p class="code-caption">نگاشت کد وضعیت به استثنا: <bdi dir="ltr">clients/errors.py</bdi></p>
+    <ul>
+        <li><strong>یک</strong> <code>httpx.Client</code> با نشانی پایه، مهلت زمانی و <code>User-Agent</code>.</li>
+        <li>توکن بعد از <code>login()</code> درون کلاینت می‌ماند و با هر درخواست فرستاده می‌شود؛ <code>logout()</code> یعنی فراموش کردن توکن.</li>
+        <li>هر متد یک مدل تایپ‌دار برمی‌گرداند و هر شکست به یکی از استثناهای <strong>خود کلاینت</strong> تبدیل می‌شود.</li>
+        <li>مدل‌های کلاینت عمداً از <code>app.schemas</code> سرور وارد <strong>نمی‌شوند</strong>؛ یک کلاینت واقعی در مخزن دیگری زندگی می‌کند و فقط قرارداد JSON را می‌شناسد. فیلدهای ناشناخته نادیده گرفته می‌شوند تا سرور تازه‌تر کلاینت قدیمی را خراب نکند.</li>
+    </ul>
+    <pre class="out">Registered and logged in as Demo Student (student)
+Enrolled in course 1: active
+Second time -&gt; 409: Already enrolled
+Student creates a course -&gt; 403: This action requires the role: admin or instructor
+Teacher created #6 and changed its price to 1,200,000</pre>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S14-rest-client</code> شش پوشه دارد. نمونه‌های ۰۱ و ۰۲ به اینترنت، ۰۳ به هیچ چیز و ۰۴ و ۰۵ به سرور فصل سیزدهم نیاز دارند. در پروژه <code>pytest</code> بدون سرور اجرا می‌شود و <code>python demo.py</code> با سرور.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>httpx.Client(base_url, timeout, headers)</code></td><td>یک نشست با تنظیمات مشترک</td></tr>
+                <tr><td><code>get</code>، <code>post</code>، <code>put</code>، <code>patch</code>، <code>delete</code></td><td>پنج روش</td></tr>
+                <tr><td><code>params=</code>، <code>json=</code>، <code>data=</code>، <code>files=</code></td><td>ساختن درخواست</td></tr>
+                <tr><td><code>httpx.Timeout(10, connect=3)</code></td><td>هرگز تا ابد منتظر نمان</td></tr>
+                <tr><td><code>TransportError</code> در برابر <code>is_error</code></td><td>بی‌پاسخ در برابر پاسخ منفی</td></tr>
+                <tr><td><code>httpx.Auth</code></td><td>هدر مجوز برای همه درخواست‌ها</td></tr>
+                <tr><td>کلاس کلاینت با <code>_request</code></td><td>یک جا برای فرستادن و خطا</td></tr>
+                <tr><td>مدل‌های سمت کلاینت</td><td>خروجی تایپ‌دار، مستقل از سرور</td></tr>
+                <tr><td><code>httpx.MockTransport</code></td><td>آزمون کلاینت بدون سرور</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li><code>main</code> نمونه ۰۱ را با کتابخانه <code>requests</code> بازنویسی کنید. چه چیزی باید عوض شد؟</li>
+            <li>در نمونه ۰۳ مسیر <code>/rate-limited</code> را اضافه کنید که ۴۲۹ با هدر <code>Retry-After: 2</code> بدهد و جداگانه مدیریتش کنید.</li>
+            <li>در نمونه ۰۴ کاری کنید که اگر توکن منقضی شد، اسکریپت خودکار دوباره وارد شود.</li>
+            <li>به کلاینت <code>download_material(material_id, target)</code> اضافه کنید که فایل را جریانی روی دیسک بنویسد (<code>client.stream</code> و <code>iter_bytes</code>)، همراه با آزمون.</li>
+            <li>متدی بنویسید که عنوان همه دوره‌های پیشرفته زیر چهار میلیون تومان را از ارزان به گران برگرداند، با استفاده از <code>iter_courses</code>.</li>
+            <li>گزینه <code>retries</code> اضافه کنید که درخواست‌های GET منجر به <code>ApiConnectionError</code> را تا N بار تکرار کند. چرا فقط GET؟</li>
+            <li>آزمونی بنویسید که ثابت کند کلاینت هدر <code>User-Agent</code> را می‌فرستد.</li>
+            <li><strong>تکلیف:</strong> <code>library_client.py</code> را برای API کتابخانه بنویسید: ورود، جست‌وجوی کتاب‌ها (همه صفحه‌ها، به شکل مولد)، امانت گرفتن و برگرداندن، مدل‌های تایپ‌دار، استثناهای خود کلاینت و دست‌کم هشت آزمون با MockTransport.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-13.html">فصل قبل: آزمون خودکار API با pytest</a>
+        <a href="chapter-15.html">فصل بعد: کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی</a>
+    </div>
+
+</main>
+
+</body>
+</html>

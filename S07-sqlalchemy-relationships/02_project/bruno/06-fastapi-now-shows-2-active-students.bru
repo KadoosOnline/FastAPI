@@ -1,0 +1,18 @@
+meta {
+  name: FastAPI now shows 2 active students
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/courses/3
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.active_students).to.equal(2);
+  });
+}

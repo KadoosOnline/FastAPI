@@ -1,0 +1,17 @@
+meta {
+  name: Filter by level
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/courses?level=advanced
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

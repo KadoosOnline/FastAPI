@@ -1,0 +1,42 @@
+# =====================================================================
+# Local working files (never published)
+# =====================================================================
+
+# Working notes for Claude Code sessions
+CLAUDE.md
+docs/
+
+# The first, over-engineered draft; kept locally to reuse tested code
+_draft/
+
+# =====================================================================
+# Standard exclusions
+# =====================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments: rebuilt from requirements.txt in one command
+.venv/
+venv/
+
+# Databases created by the examples (they are rebuilt on every start)
+*.db
+*.sqlite3
+
+# Uploaded files (sessions 11 onwards)
+uploads/
+
+# Secrets. A committed secret stays in the history for ever.
+.env
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.sync-conflict-*

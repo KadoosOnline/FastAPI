@@ -1,0 +1,23 @@
+meta {
+  name: Enroll Sara in FastAPI
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/courses/2/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "student_id": 2
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

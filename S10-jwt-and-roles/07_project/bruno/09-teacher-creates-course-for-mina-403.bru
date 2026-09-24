@@ -1,0 +1,31 @@
+meta {
+  name: Teacher creates course for Mina (403)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:json {
+  {
+    "title": "Other",
+    "price": 1500000,
+    "capacity": 2,
+    "level": "intermediate",
+    "instructor_id": 3
+  }
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

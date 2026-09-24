@@ -1,0 +1,30 @@
+meta {
+  name: Admin creates an instructor
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "email": "new.teacher@kadoos.ir",
+    "full_name": "New Teacher",
+    "password": "Teach2026",
+    "role": "instructor"
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

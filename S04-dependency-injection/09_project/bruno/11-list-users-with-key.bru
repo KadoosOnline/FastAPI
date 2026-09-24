@@ -1,0 +1,21 @@
+meta {
+  name: List users with key
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/users
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Change price (PATCH)
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/courses/1
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "price": 2700000
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.price).to.equal(2700000);
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Admin creates for Mina
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+body:json {
+  {
+    "title": "Admin Course",
+    "price": 1500000,
+    "capacity": 2,
+    "level": "intermediate",
+    "instructor_id": 3
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

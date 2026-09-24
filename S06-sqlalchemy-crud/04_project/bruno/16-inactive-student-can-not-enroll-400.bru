@@ -1,0 +1,23 @@
+meta {
+  name: Inactive student can not enroll (400)
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/courses/{{courseId}}/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "student_id": 5
+  }
+}
+
+tests {
+  test("status is 400", function() {
+    expect(res.status).to.equal(400);
+  });
+}

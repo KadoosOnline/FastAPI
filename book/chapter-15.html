@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل پانزده: کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی. AsyncClient، gather و Semaphore، تلاش دوباره با عقب‌نشینی نمایی، نگاشت خطا و event hook، API شخص ثالث، fetch در مرورگر، برنامه داشبورد">
+    <title>فصل ۱۵: کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۵</span>
+        <h1>کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی</h1>
+        <p class="lead">کلاینت فصل قبل را یک قدم جلوتر می‌بریم. با httpx.AsyncClient درخواست‌های زیادی را هم‌زمان می‌فرستیم، البته مؤدبانه و با سقف، شکست‌های موقت را با اطمینان دوباره امتحان می‌کنیم، هر خطا را به یک استثنای معنادار نگاشت می‌کنیم و از API شخص ثالثی استفاده می‌کنیم که در اختیار ما نیست. بعد یک برنامه کلاینت کوچک می‌نویسیم که وارد می‌شود، توکن را نگه می‌دارد، داده محافظت‌شده را هم‌زمان می‌خواند، دوره می‌سازد و تغییر می‌دهد و آبرومندانه شکست می‌خورد. در پایان همان API را از یک کلاینت کاملاً متفاوت هم می‌بینیم: یک صفحه وب با fetch.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">AsyncClient</a></li>
+            <li><a href="#s2">درخواست‌های هم‌زمان، با سقف</a></li>
+            <li><a href="#s3">تلاش دوباره، با احتیاط</a></li>
+            <li><a href="#s4">نگاشت خطا و event hook</a></li>
+            <li><a href="#s5">API شخص ثالث: یکپارچه‌سازی با چیزی که در اختیارتان نیست</a></li>
+            <li><a href="#s6">همان API از مرورگر</a></li>
+            <li><a href="#s7">پروژه: برنامه داشبورد مدرس</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. AsyncClient</h2>
+    <p><code>httpx.AsyncClient</code> همان رابط <code>Client</code> را دارد، با <code>await</code>. یک کلاینت ناهمگام می‌تواند درون یک نخ درخواست‌های <strong>زیادی</strong> را هم‌زمان در جریان داشته باشد. درون یک سرور ناهمگام مثل FastAPI، تنها راه درست صدا زدن یک API دیگر هم همین است؛ کلاینت همگام حلقه رویداد را مسدود می‌کند (فصل دوازدهم).</p>
+    <pre class="code"><code>import asyncio
+
+import httpx
+
+
+async def main() -&gt; None:
+    async with httpx.AsyncClient(base_url=&#x27;http://127.0.0.1:8000&#x27;, timeout=5) as client:
+        page = (await client.get(&#x27;/courses&#x27;, params={&#x27;sort&#x27;: &#x27;price&#x27;})).json()
+        print(f&#x27;{page[&quot;total&quot;]} courses&#x27;)
+        for course in page[&#x27;items&#x27;]:
+            print(f&#x27;  {course[&quot;title&quot;]:&lt;22} {course[&quot;price&quot;]:&gt;12,}&#x27;)
+
+        detail = (await client.get(&#x27;/courses/3&#x27;)).json()
+        print(&#x27;course 3 is taught by&#x27;, detail[&#x27;instructor&#x27;][&#x27;full_name&#x27;])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    try:
+        asyncio.run(main())
+    except httpx.ConnectError:
+        print(&#x27;Start the session 13 API first.&#x27;)</code></pre>
+    <p class="code-caption">AsyncClient در برابر API ما: نمونه <bdi dir="ltr">01_async_client/app.py</bdi></p>
+
+    <h2 id="s2">۲. درخواست‌های هم‌زمان، با سقف</h2>
+    <pre class="code"><code>async def sequential(client: httpx.AsyncClient) -&gt; list[str]:
+    return [(await client.get(f&#x27;/posts/{i}&#x27;)).json()[&#x27;title&#x27;] for i in IDS]
+
+
+async def concurrent(client: httpx.AsyncClient) -&gt; list[str]:
+    responses = await asyncio.gather(*(client.get(f&#x27;/posts/{i}&#x27;) for i in IDS))
+    return [r.json()[&#x27;title&#x27;] for r in responses]
+
+
+async def concurrent_limited(client: httpx.AsyncClient, limit: int = 5) -&gt; list[str]:
+    semaphore = asyncio.Semaphore(limit)
+
+    async def fetch(post_id: int) -&gt; str:
+        async with semaphore:  # wait here if `limit` requests are already running
+            return (await client.get(f&#x27;/posts/{post_id}&#x27;)).json()[&#x27;title&#x27;]
+
+    return list(await asyncio.gather(*(fetch(i) for i in IDS)))</code></pre>
+    <p class="code-caption">ترتیبی، gather و Semaphore: نمونه <bdi dir="ltr">02_concurrent_requests/app.py</bdi></p>
+    <pre class="out">sequential           20 posts in 5.90s
+concurrent           20 posts in 2.51s
+concurrent_limited   20 posts in 0.80s</pre>
+    <p>مؤدب باشید: هرگز ده هزار درخواست را یک‌جا نفرستید. <code>asyncio.Semaphore(5)</code> اجازه می‌دهد حداکثر پنج درخواست هم‌زمان اجرا شوند؛ بسیاری از APIها کلاینت‌هایی را که بیشتر بفرستند مسدود می‌کنند.</p>
+    <div class="note">
+        <span class="box-title">چرا این مثال از اینترنت استفاده می‌کند؟</span>
+        <p>روی یک سرور در همان کامپیوتر هر درخواست یک میلی‌ثانیه طول می‌کشد و هم‌زمانی تقریباً سودی ندارد؛ هزینه هماهنگی حتی ممکن است آن را کندتر کند. سود وقتی ظاهر می‌شود که تأخیر واقعی شبکه وجود دارد. عددها در هر اجرا کمی فرق می‌کنند.</p>
+    </div>
+
+    <h2 id="s3">۳. تلاش دوباره، با احتیاط</h2>
+    <p>شبکه‌ها و سرورها برای لحظه‌ای شکست می‌خورند: یک مهلت تمام‌شده، یک ۵۰۳ هنگام راه‌اندازی دوباره. تلاش دوباره بعد از مکثی کوتاه اغلب موفق می‌شود. قاعده‌ها:</p>
+    <ul>
+        <li>فقط درخواست‌های <strong>idempotent</strong> (GET، PUT، DELETE) دوباره امتحان می‌شوند؛ دو بار انجام دادنشان چیزی را بیشتر تغییر نمی‌دهد. تکرار یک POST می‌تواند دانشجو را دو بار ثبت‌نام کند!</li>
+        <li>فقط شکست‌های <strong>موقت</strong>: خطای انتقال، ۵۰۲، ۵۰۳، ۵۰۴ و ۴۲۹.</li>
+        <li>هر بار بیشتر صبر کنید (عقب‌نشینی نمایی): ۰٫۲، ۰٫۴، ۰٫۸ ثانیه.</li>
+        <li>بعد از چند تلاش دست بکشید و <code>Retry-After</code> سرور را رعایت کنید.</li>
+    </ul>
+    <pre class="code"><code>async def request_with_retry(
+    client: httpx.AsyncClient, method: str, url: str, *, attempts: int = 4, backoff: float = 0.2
+) -&gt; httpx.Response:
+    tries = attempts if method in IDEMPOTENT else 1
+    for attempt in range(1, tries + 1):
+        try:
+            response = await client.request(method, url)
+            if response.status_code not in TEMPORARY or attempt == tries:
+                return response
+            wait = float(response.headers.get(&#x27;Retry-After&#x27;, backoff * 2 ** (attempt - 1)))
+            print(f&#x27;   attempt {attempt}: HTTP {response.status_code}, waiting {wait:.1f}s&#x27;)
+        except httpx.TransportError as error:
+            if attempt == tries:
+                raise
+            wait = backoff * 2 ** (attempt - 1)
+            print(f&#x27;   attempt {attempt}: {type(error).__name__}, waiting {wait:.1f}s&#x27;)
+        await asyncio.sleep(wait)
+    raise AssertionError(&#x27;unreachable&#x27;)
+
+
+def flaky_server() -&gt; httpx.MockTransport:
+    calls = {&#x27;n&#x27;: 0}
+
+    def handler(request: httpx.Request) -&gt; httpx.Response:
+        calls[&#x27;n&#x27;] += 1
+        if calls[&#x27;n&#x27;] == 1:
+            raise httpx.ConnectTimeout(&#x27;slow network&#x27;, request=request)
+        if calls[&#x27;n&#x27;] == 2:
+            return httpx.Response(503, headers={&#x27;Retry-After&#x27;: &#x27;0.3&#x27;})
+        return httpx.Response(200, json={&#x27;ok&#x27;: True, &#x27;after_calls&#x27;: calls[&#x27;n&#x27;]})
+
+    return httpx.MockTransport(handler)</code></pre>
+    <p class="code-caption">تلاش دوباره و یک سرور ناپایدار جعلی: نمونه <bdi dir="ltr">03_retry_and_backoff/app.py</bdi></p>
+    <pre class="out">GET on a flaky server:
+   attempt 1: ConnectTimeout, waiting 0.2s
+   attempt 2: HTTP 503, waiting 0.3s
+   -&gt; 200 {&#x27;ok&#x27;: True, &#x27;after_calls&#x27;: 3} in 0.5s
+POST on a flaky server (no retry!):
+   -&gt; gave up at once: ConnectTimeout</pre>
+
+    <h2 id="s4">۴. نگاشت خطا و event hook</h2>
+    <p>جدول نگاشت فقط در <strong>یک</strong> جا زندگی می‌کند و event hookها توابعی‌اند که HTTPX برای هر درخواست و پاسخ صدا می‌زند؛ جای خوبی برای ثبت لاگ، بدون دست زدن به هیچ متدی. نمونه ۰۴ هر دو را با یک سرور جعلی نشان می‌دهد:</p>
+    <pre class="out">  --&gt; GET /admin
+  &lt;-- 403 /admin
+      PermissionDenied: Admins only
+  --&gt; GET /offline
+      ApiUnavailable: refused</pre>
+
+    <h2 id="s5">۵. API شخص ثالث: یکپارچه‌سازی با چیزی که در اختیارتان نیست</h2>
+    <pre class="code"><code>class ExternalModel(BaseModel):
+    model_config = ConfigDict(extra=&#x27;ignore&#x27;)
+
+
+class User(ExternalModel):
+    id: int
+    name: str
+    email: str
+
+
+class Todo(ExternalModel):
+    userId: int  # noqa: N815  (their field name, not ours)
+    completed: bool
+
+
+class ExternalApiError(Exception):
+    pass
+
+
+async def fetch_list[T: ExternalModel](
+    client: httpx.AsyncClient, path: str, model: type[T]
+) -&gt; list[T]:
+    try:
+        response = await client.get(path)
+        response.raise_for_status()
+        return [model.model_validate(item) for item in response.json()]
+    except httpx.HTTPError as error:
+        raise ExternalApiError(f&#x27;{path}: {error!r}&#x27;) from error
+    except ValidationError as error:
+        raise ExternalApiError(
+            f&#x27;{path}: unexpected data ({error.error_count()} problems)&#x27;
+        ) from error</code></pre>
+    <p class="code-caption">مدل‌های حداقلی، مهلت، بررسی و جداسازی: نمونه <bdi dir="ltr">05_third_party_api/app.py</bdi></p>
+    <ul>
+        <li>مستندات را بخوانید و <strong>فقط</strong> فیلدهایی را مدل کنید که لازم دارید (<code>extra=&#x27;ignore&#x27;</code>).</li>
+        <li>مهلت زمانی همه‌جا؛ از کار افتادن آنها نباید از کار افتادن شما باشد.</li>
+        <li>داده آنها را بررسی کنید: فیلد جاافتاده باید یک خطای روشن باشد، نه یک <code>KeyError</code> در عمق کد.</li>
+        <li>یکپارچه‌سازی را در یک ماژول و پشت توابع خودتان نگه دارید.</li>
+    </ul>
+
+    <h2 id="s6">۶. همان API از مرورگر</h2>
+    <p>پوشه <code>06_browser_fetch</code> یک صفحه HTML است که با جاوااسکریپت و <code>fetch</code> وارد می‌شود، توکن را نگه می‌دارد و دوره‌ها و ثبت‌نام‌های کاربر را می‌خواند. ورود دقیقاً مثل Bruno و HTTPX یک <strong>فرم</strong> می‌فرستد. سرور بین مرورگر، کلاینت پایتونی و Bruno هیچ فرقی نمی‌گذارد؛ این یعنی یک API خوب طراحی‌شده. برای اینکه CORS اجازه دهد، صفحه را از درگاه ۵۵۰۰ اجرا کنید: <code>python -m http.server 5500</code>.</p>
+
+    <h2 id="s7">۷. پروژه: برنامه داشبورد مدرس</h2>
+    <pre class="out">07_project/
+├── client_app/
+│   ├── api_client.py    TrainingCenterApi: توکن، نگاشت خطا، تلاش دوباره
+│   ├── models.py        فقط مدل‌هایی که این برنامه لازم دارد
+│   └── main.py          داشبورد مدرس با argparse
+└── tests/               نه آزمون ناهمگام با MockTransport</pre>
+    <pre class="code"><code>    async def _request(self, method: str, path: str, **kwargs: Any) -&gt; httpx.Response:
+        headers = kwargs.pop(&#x27;headers&#x27;, {})
+        if self.token:
+            headers[&#x27;Authorization&#x27;] = f&#x27;Bearer {self.token}&#x27;
+        attempts = 1 + (self.retries if method in IDEMPOTENT else 0)
+        for attempt in range(1, attempts + 1):
+            try:
+                response = await self._http.request(method, path, headers=headers, **kwargs)
+            except httpx.TransportError as error:
+                if attempt == attempts:
+                    raise ApiUnavailable(f&#x27;{method} {path}: {error!r}&#x27;) from error
+            else:
+                if response.status_code not in TEMPORARY or attempt == attempts:
+                    if response.is_error:
+                        raise _to_error(response)
+                    return response
+            await asyncio.sleep(self.backoff * 2 ** (attempt - 1))
+        raise AssertionError(&#x27;unreachable&#x27;)</code></pre>
+    <p class="code-caption">یک جا برای توکن، تلاش دوباره و خطا: <bdi dir="ltr">client_app/api_client.py</bdi></p>
+    <pre class="code"><code>    async def students_of_many(
+        self, course_ids: list[int], limit: int = 5
+    ) -&gt; dict[int, list[Student]]:
+        &quot;&quot;&quot;Fetch the students of several courses concurrently (at most `limit` at a time).&quot;&quot;&quot;
+        semaphore = asyncio.Semaphore(limit)
+
+        async def one(course_id: int) -&gt; tuple[int, list[Student]]:
+            async with semaphore:
+                return course_id, await self.students(course_id)
+
+        return dict(await asyncio.gather(*(one(cid) for cid in course_ids)))</code></pre>
+    <p class="code-caption">دانشجویان چند دوره، هم‌زمان و با سقف: <bdi dir="ltr">client_app/api_client.py</bdi></p>
+    <pre class="code"><code>async def dashboard(args: argparse.Namespace) -&gt; None:
+    async with TrainingCenterApi(args.base_url) as api:
+        await api.login(args.email, args.password)
+        me = await api.me()
+        print(f&#x27;Hello {me.full_name} ({me.role})\n&#x27;)
+
+        courses = [course async for course in api.all_courses(instructor_id=me.id, sort=&#x27;title&#x27;)]
+        students = await api.students_of_many([course.id for course in courses])
+        print(f&#x27;{&quot;course&quot;:&lt;24}{&quot;price&quot;:&gt;12}{&quot;seats&quot;:&gt;9}&#x27;)
+        for course in courses:
+            active = sum(s.status == &#x27;active&#x27; for s in students[course.id])
+            print(f&#x27;{course.title:&lt;24}{course.price:&gt;12,}{active:&gt;5}/{course.capacity:&lt;3}&#x27;)
+
+        if args.new_course:
+            try:
+                course = await api.create_course(
+                    title=args.new_course, price=2_000_000, capacity=12
+                )
+                course = await api.update_course(course.id, price=2_200_000)
+                print(f&#x27;\ncreated #{course.id} {course.title!r} for {course.price:,} Toman&#x27;)
+            except Conflict as error:
+                print(f&#x27;\nnot created: {error.detail}&#x27;)
+
+
+def main() -&gt; int:
+    parser = argparse.ArgumentParser(description=&#x27;Teacher dashboard for the Training Center API&#x27;)
+    parser.add_argument(&#x27;--base-url&#x27;, default=&#x27;http://127.0.0.1:8000&#x27;)
+    parser.add_argument(&#x27;--email&#x27;, default=&#x27;teacher@kadoos.ir&#x27;)
+    parser.add_argument(&#x27;--password&#x27;, default=&#x27;Password123&#x27;)
+    parser.add_argument(&#x27;--new-course&#x27;, default=None, help=&#x27;title of a course to create&#x27;)
+    args = parser.parse_args()
+    try:
+        asyncio.run(dashboard(args))
+    except ApiUnavailable:
+        print(&#x27;The API does not answer. Is the server running?&#x27;, file=sys.stderr)
+    except AuthenticationFailed:
+        print(&#x27;Wrong e-mail or password.&#x27;, file=sys.stderr)
+    except PermissionDenied as error:
+        print(f&#x27;Not allowed: {error.detail}&#x27;, file=sys.stderr)
+    except ApiError as error:
+        print(f&#x27;The API refused the request: {error}&#x27;, file=sys.stderr)
+    else:
+        return 0
+    return 1</code></pre>
+    <p class="code-caption">داشبورد و پیام روشن برای هر شکست: <bdi dir="ltr">client_app/main.py</bdi></p>
+    <pre class="out">Hello Ali Teacher (instructor)
+
+course                         price    seats
+Advanced Python            3,500,000    0/15
+FastAPI                    4,800,000    0/2
+Python Basics              2,500,000    1/20
+
+created #7 &#x27;Docker Basics&#x27; for 2,200,000 Toman</pre>
+    <pre class="out">python -m client_app.main --password wrong
+Wrong e-mail or password.
+python -m client_app.main --base-url http://127.0.0.1:8999
+The API does not answer. Is the server running?</pre>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>سرور را وسط کار داشبورد متوقف کنید (برای کند شدن یک <code>sleep</code> بگذارید). کاربر چه می‌بیند؟ یک traceback یا یک پیام؟</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S15-async-client</code> هفت پوشه دارد. نمونه‌های ۰۱ و ۰۶ و پروژه به سرور فصل سیزدهم نیاز دارند، ۰۲ و ۰۵ به اینترنت و ۰۳ و ۰۴ به هیچ چیز. در پروژه <code>pytest</code> بدون سرور اجرا می‌شود و داشبورد با <code>python -m client_app.main</code>.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>httpx.AsyncClient</code></td><td>کلاینت ناهمگام</td></tr>
+                <tr><td><code>asyncio.gather</code> و <code>Semaphore</code></td><td>هم‌زمانی با سقف</td></tr>
+                <tr><td>idempotent و شکست موقت</td><td>چه چیزی را دوباره امتحان کنیم</td></tr>
+                <tr><td>عقب‌نشینی نمایی و <code>Retry-After</code></td><td>چقدر صبر کنیم</td></tr>
+                <tr><td>جدول نگاشت خطا</td><td>یک جا برای معنای کدهای وضعیت</td></tr>
+                <tr><td><code>event_hooks</code></td><td>لاگ برای همه درخواست‌ها</td></tr>
+                <tr><td>مدل‌های <code>extra=&#x27;ignore&#x27;</code></td><td>یکپارچه‌سازی با API دیگران</td></tr>
+                <tr><td><code>fetch</code> در مرورگر</td><td>همان API، کلاینتی دیگر</td></tr>
+                <tr><td><code>async for</code> روی مولد ناهمگام</td><td>پیمایش همه صفحه‌ها</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در نمونه ۰۲ صد پست را با سقف‌های ۱، ۵، ۲۰ و ۱۰۰ بگیرید و جدول زمان‌ها را بکشید.</li>
+            <li>به تابع تلاش دوباره «jitter» تصادفی اضافه کنید. چرا سیستم‌های بزرگ این کار را می‌کنند؟</li>
+            <li>در نمونه ۰۴ با یک event hook به هر درخواست یک شناسه درخواست اضافه کنید و در hook پاسخ چاپش کنید.</li>
+            <li>در نمونه ۰۵ نام فیلد <code>completed</code> را در یک پاسخ MockTransport عوض کنید. کد ما چه خطایی می‌دهد و کجا؟</li>
+            <li>به داشبورد گزینه <code>--export report.csv</code> اضافه کنید.</li>
+            <li><code>api.enroll(course_id)</code> و حالت <code>--student</code> را اضافه کنید که دوره‌های دانشجو را نشان دهد و او را در ارزان‌ترین دوره‌ای که هنوز ندارد ثبت‌نام کند.</li>
+            <li>وقتی توکن در یک اجرای طولانی منقضی شد، یک بار خودکار دوباره وارد شوید و درخواست را تکرار کنید. این کار در کدام بخش <code>api_client.py</code> قرار می‌گیرد؟</li>
+            <li>صفحه <code>06_browser_fetch</code> را از درگاه ۸۰۸۰ باز کنید. چه چیزی خراب می‌شود و کدام تنظیم سرور درستش می‌کند؟</li>
+            <li><strong>تکلیف:</strong> یک داشبورد ناهمگام برای کتابخانه بنویسید: ورود کتابدار، همه کتاب‌ها، امانت‌های فعلی همه اعضا به صورت هم‌زمان با سقف پنج، چاپ اعضای دارای کتاب دیرکرده و پیام روشن برای هر شکست.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-14.html">فصل قبل: ساختن یک کلاینت REST پایتونی با HTTPX</a>
+        <a href="chapter-16.html">فصل بعد: پروژه پایانی: یکپارچه‌سازی، رفع باگ، بازنویسی و بازبینی کد</a>
+    </div>
+
+</main>
+
+</body>
+</html>

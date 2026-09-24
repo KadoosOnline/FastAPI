@@ -1,0 +1,21 @@
+meta {
+  name: Deleted material is gone (404)
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/materials/{{materialId}}/download
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 404", function() {
+    expect(res.status).to.equal(404);
+  });
+}

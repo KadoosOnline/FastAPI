@@ -1,0 +1,28 @@
+meta {
+  name: Sara takes three courses at once
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/users/4/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "course_ids": [
+      1,
+      3,
+      4
+    ]
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+    expect(res.body.length).to.equal(3);
+  });
+}

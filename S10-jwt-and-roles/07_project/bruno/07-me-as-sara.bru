@@ -1,0 +1,22 @@
+meta {
+  name: Me as Sara
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.role).to.equal("student");
+  });
+}

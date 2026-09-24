@@ -1,0 +1,27 @@
+meta {
+  name: Owner changes the price
+  type: http
+  seq: 13
+}
+
+patch {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:json {
+  {
+    "price": 1700000
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

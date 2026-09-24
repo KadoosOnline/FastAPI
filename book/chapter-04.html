@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل چهار: تزریق وابستگی، ساختار، خطاها و تنظیمات. Depends و Annotated، کلاس و سرویس به عنوان وابستگی، وابستگی yield، هدر و کوکی، مدیریت خطا، pydantic-settings، ساختار پروژه">
+    <title>فصل ۴: تزریق وابستگی، ساختار، خطاها و تنظیمات</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۴</span>
+        <h1>تزریق وابستگی، ساختار، خطاها و تنظیمات</h1>
+        <p class="lead">قوی‌ترین ایده FastAPI را یاد می‌گیریم: وابستگی‌ها. هر تابع اعلام می‌کند به چه چیزی نیاز دارد، مثل صفحه‌بندی، یک سرویس، تنظیمات یا «فراخواننده باید کلید داشته باشد»، و FastAPI آن را آماده می‌کند. بعد با همین ایده پروژه تک‌پوشه‌ای را به یک بسته کوچک و مرتب تبدیل می‌کنیم: تنظیمات از فایل env، سرویس‌هایی که قواعد را نگه می‌دارند، یک جای مرکزی برای تبدیل خطاهای کسب‌وکار به پاسخ HTTP و روترهای نازک.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">وابستگی: «FastAPI، این را برایم آماده کن»</a></li>
+            <li><a href="#s2">شکل امروزی: Annotated</a></li>
+            <li><a href="#s3">کلاس و سرویس به عنوان وابستگی</a></li>
+            <li><a href="#s4">وابستگی با yield: آماده کن، تحویل بده، همیشه جمع کن</a></li>
+            <li><a href="#s5">هدر، کوکی و اولین وابستگی احراز هویت</a></li>
+            <li><a href="#s6">مدیریت متمرکز خطا</a></li>
+            <li><a href="#s7">تنظیمات با pydantic-settings</a></li>
+            <li><a href="#s8">ساختار پروژه: هر فایل، یک سؤال</a></li>
+            <li><a href="#s9">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. وابستگی: «FastAPI، این را برایم آماده کن»</h2>
+    <p>دو endpoint به پارامترهای صفحه‌بندی یکسانی نیاز دارند. به جای تکرار، یک تابع می‌نویسیم و آن را به عنوان <strong>وابستگی</strong> اعلام می‌کنیم:</p>
+    <pre class="code"><code>import uvicorn
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+COURSES = [f&#x27;Course {n}&#x27; for n in range(1, 31)]
+USERS = [f&#x27;user{n}@example.com&#x27; for n in range(1, 13)]
+
+
+def pagination(page: int = 1, size: int = 10) -&gt; dict[str, int]:
+    size = min(size, 50)  # never more than 50 per page
+    return {&#x27;offset&#x27;: (page - 1) * size, &#x27;limit&#x27;: size}
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses(paging: dict[str, int] = Depends(pagination)) -&gt; list[str]:
+    start = paging[&#x27;offset&#x27;]
+    return COURSES[start : start + paging[&#x27;limit&#x27;]]
+
+
+@app.get(&#x27;/users&#x27;)
+def list_users(paging: dict[str, int] = Depends(pagination)) -&gt; list[str]:
+    start = paging[&#x27;offset&#x27;]
+    return USERS[start : start + paging[&#x27;limit&#x27;]]
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">یک تابع صفحه‌بندی برای دو endpoint: نمونه <bdi dir="ltr">01_depends_basics/app.py</bdi></p>
+    <p>در هر درخواست، FastAPI ابتدا <code>pagination(...)</code> را صدا می‌زند، پارامترهایش را از رشته پرس‌وجو می‌خواند و نتیجه را به endpoint می‌دهد. پارامترهای وابستگی در <code>/docs</code> طوری نشان داده می‌شوند که انگار مال خود endpoint هستند. این همان تابع مرتبه بالای فصل اول است: ما تابع را به FastAPI می‌دهیم و FastAPI تصمیم می‌گیرد کی صدایش بزند.</p>
+
+    <h2 id="s2">۲. شکل امروزی: Annotated</h2>
+    <pre class="code"><code>from dataclasses import dataclass
+from typing import Annotated
+
+import uvicorn
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+calls = {&#x27;get_max_size&#x27;: 0}
+
+
+@dataclass
+class PageParams:
+    page: int
+    size: int
+
+    @property
+    def offset(self) -&gt; int:
+        return (self.page - 1) * self.size
+
+
+def get_max_size() -&gt; int:
+    calls[&#x27;get_max_size&#x27;] += 1
+    return 50
+
+
+def get_paging(
+    max_size: Annotated[int, Depends(get_max_size)], page: int = 1, size: int = 10
+) -&gt; PageParams:
+    return PageParams(page=max(page, 1), size=min(size, max_size))
+
+
+Paging = Annotated[PageParams, Depends(get_paging)]
+MaxSize = Annotated[int, Depends(get_max_size)]
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses(paging: Paging, max_size: MaxSize) -&gt; dict:
+    return {
+        &#x27;offset&#x27;: paging.offset,
+        &#x27;size&#x27;: paging.size,
+        &#x27;max_size&#x27;: max_size,
+        &#x27;get_max_size was called&#x27;: calls[&#x27;get_max_size&#x27;],  # grows by 1 per request
+    }
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">نام مستعار Annotated، وابستگی تودرتو و کش: نمونه <bdi dir="ltr">02_annotated_dependencies/app.py</bdi></p>
+    <ul>
+        <li><code>Paging = Annotated[PageParams, Depends(get_paging)]</code> یک بار نوشته می‌شود و همه‌جا استفاده می‌شود.</li>
+        <li>یک وابستگی می‌تواند به وابستگی دیگری وابسته باشد. FastAPI کل درخت را حل می‌کند.</li>
+        <li>در <strong>یک درخواست</strong> هر وابستگی فقط <strong>یک بار</strong> صدا زده می‌شود، حتی اگر چند جا به آن نیاز باشد. شمارنده خروجی این را نشان می‌دهد.</li>
+    </ul>
+
+    <h2 id="s3">۳. کلاس و سرویس به عنوان وابستگی</h2>
+    <p>هر چیز صدازدنی می‌تواند وابستگی باشد، از جمله یک کلاس: FastAPI پارامترهای <code>__init__</code> آن را می‌خواند و <code>Depends()</code> بدون آرگومان یعنی «از خود نوع استفاده کن». کاربرد مهم‌تر، <strong>سرویس</strong> است: endpoint فقط سرویس را می‌خواهد و نمی‌داند سرویس چگونه ساخته می‌شود. امروز سرویس از یک فهرست استفاده می‌کند؛ در فصل پنجم از یک نشست پایگاه داده، و endpoint تغییری نمی‌کند. این <strong>وارونگی وابستگی</strong> در عمل است.</p>
+
+    <h2 id="s4">۴. وابستگی با yield: آماده کن، تحویل بده، همیشه جمع کن</h2>
+    <p>این همان مدیر زمینه فصل اول است، به شکل وابستگی:</p>
+    <pre class="code"><code>class FakeSession:
+    counter = 0
+
+    def __init__(self) -&gt; None:
+        FakeSession.counter += 1
+        self.number = FakeSession.counter
+        print(f&#x27;[session {self.number}] OPEN&#x27;)
+
+    def rollback(self) -&gt; None:
+        print(f&#x27;[session {self.number}] ROLLBACK&#x27;)
+
+    def close(self) -&gt; None:
+        print(f&#x27;[session {self.number}] CLOSE&#x27;)
+
+
+def get_session() -&gt; Iterator[FakeSession]:
+    session = FakeSession()
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+SessionDep = Annotated[FakeSession, Depends(get_session)]
+app = FastAPI()
+
+
+@app.get(&#x27;/ok&#x27;)
+def ok(session: SessionDep) -&gt; dict[str, int]:
+    return {&#x27;session&#x27;: session.number}
+
+
+@app.get(&#x27;/fail&#x27;)
+def fail(session: SessionDep) -&gt; None:
+    raise HTTPException(400, detail=&#x27;something was wrong with the request&#x27;)</code></pre>
+    <p class="code-caption">باز کردن، بستن و بازگرداندن: نمونه <bdi dir="ltr">04_yield_dependencies/app.py</bdi></p>
+    <pre class="out">[session 1] OPEN
+[session 1] CLOSE
+[session 2] OPEN
+[session 2] ROLLBACK
+[session 2] CLOSE</pre>
+    <p>در فصل پنجم دقیقاً همین شکل به هر درخواست نشست پایگاه داده خودش را می‌دهد.</p>
+
+    <h2 id="s5">۵. هدر، کوکی و اولین وابستگی احراز هویت</h2>
+    <pre class="code"><code>app = FastAPI()
+
+API_KEYS = {&#x27;secret-admin-key&#x27;: &#x27;admin&#x27;, &#x27;secret-teacher-key&#x27;: &#x27;teacher&#x27;}
+
+
+@app.get(&#x27;/whoami&#x27;)
+def whoami(
+    user_agent: Annotated[str | None, Header()] = None,
+    accept_language: Annotated[str | None, Header()] = None,
+) -&gt; dict[str, str | None]:
+    return {&#x27;user_agent&#x27;: user_agent, &#x27;language&#x27;: accept_language}
+
+
+@app.post(&#x27;/preferences/theme/{theme}&#x27;)
+def set_theme(theme: str, response: Response) -&gt; dict[str, str]:
+    response.set_cookie(&#x27;theme&#x27;, theme, max_age=3600, httponly=True, samesite=&#x27;lax&#x27;)
+    return {&#x27;saved&#x27;: theme}
+
+
+@app.get(&#x27;/preferences&#x27;)
+def get_preferences(theme: Annotated[str | None, Cookie()] = None) -&gt; dict[str, str]:
+    return {&#x27;theme&#x27;: theme or &#x27;light (default)&#x27;}
+
+
+def get_caller(x_api_key: Annotated[str | None, Header()] = None) -&gt; str:
+    if x_api_key not in API_KEYS:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail=&#x27;Missing or invalid X-API-Key header&#x27;
+        )
+    return API_KEYS[x_api_key]
+
+
+@app.delete(&#x27;/courses/{course_id}&#x27;)
+def delete_course(course_id: int, caller: Annotated[str, Depends(get_caller)]) -&gt; dict:
+    return {&#x27;deleted&#x27;: course_id, &#x27;by&#x27;: caller}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">Header، Cookie و کلید API: نمونه <bdi dir="ltr">05_headers_and_cookies/app.py</bdi></p>
+    <ul>
+        <li><code>user_agent: Annotated[str | None, Header()]</code> هدر <code>User-Agent</code> را می‌خواند. زیرخط در نام پایتونی به خط تیره تبدیل می‌شود.</li>
+        <li><code>response.set_cookie(...)</code> از مرورگر می‌خواهد کوکی را ذخیره کند و <code>Cookie()</code> آن را در درخواست بعدی می‌خواند.</li>
+        <li><code>get_caller</code> <strong>مفهوم</strong> احراز هویت است: وابستگی‌ای که یک هدر را می‌خواند و یا «چه کسی صدا زده» را برمی‌گرداند، یا با ۴۰۱ درخواست را متوقف می‌کند. فصل‌های نهم و دهم کلید ثابت را با کاربر واقعی و توکن JWT عوض می‌کنند، اما شکل همین می‌ماند.</li>
+    </ul>
+
+    <h2 id="s6">۶. مدیریت متمرکز خطا</h2>
+    <p>سرویس فصل اول <code>NotFoundError</code> و <code>ConflictError</code> پرتاب می‌کرد. سرویس نباید از HTTP خبر داشته باشد، پس به FastAPI یاد می‌دهیم چطور ترجمه کند:</p>
+    <pre class="code"><code>class AppError(Exception):
+    status_code = 400
+    code = &#x27;app_error&#x27;
+
+    def __init__(self, message: str) -&gt; None:
+        super().__init__(message)
+        self.message = message
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = &#x27;not_found&#x27;
+
+
+class ConflictError(AppError):
+    status_code = 409
+    code = &#x27;conflict&#x27;
+
+
+app = FastAPI()
+
+
+@app.exception_handler(AppError)
+def handle_app_error(request: Request, error: AppError) -&gt; JSONResponse:
+    return JSONResponse(
+        status_code=error.status_code, content={&#x27;detail&#x27;: error.message, &#x27;code&#x27;: error.code}
+    )
+
+
+# --- business code: no HTTP anywhere ---
+ENROLLED = {(1, 2)}
+
+
+def enroll(student_id: int, course_id: int) -&gt; None:
+    if course_id &gt; 10:
+        raise NotFoundError(f&#x27;Course {course_id} not found&#x27;)
+    if (student_id, course_id) in ENROLLED:
+        raise ConflictError(&#x27;Already enrolled&#x27;)
+    ENROLLED.add((student_id, course_id))
+
+
+@app.post(&#x27;/courses/{course_id}/students/{student_id}&#x27;, status_code=201)
+def enroll_endpoint(course_id: int, student_id: int) -&gt; dict[str, int]:
+    enroll(student_id, course_id)
+    return {&#x27;student_id&#x27;: student_id, &#x27;course_id&#x27;: course_id}</code></pre>
+    <p class="code-caption">یک handler برای همه خطاهای کسب‌وکار: نمونه <bdi dir="ltr">06_exception_handlers/app.py</bdi></p>
+    <p>حالا هر کدی، در هر عمقی، می‌تواند <code>raise NotFoundError(...)</code> بزند و کلاینت همیشه یک شکل JSON می‌گیرد: <code>{&quot;detail&quot;: &quot;...&quot;, &quot;code&quot;: &quot;not_found&quot;}</code>.</p>
+
+    <h2 id="s7">۷. تنظیمات با pydantic-settings</h2>
+    <p>کلید مخفی، نشانی پایگاه داده و فهرست مبداهای مجاز نباید در کد نوشته شوند. آنها از <strong>محیط</strong> یا از فایل <code>.env</code> می‌آیند که هرگز در Git قرار نمی‌گیرد.</p>
+    <pre class="code"><code>class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=&#x27;.env&#x27;, env_file_encoding=&#x27;utf-8&#x27;)
+
+    app_name: str = &#x27;Training Center API&#x27;
+    debug: bool = False
+    admin_email: str = &#x27;admin@kadoos.ir&#x27;
+    max_page_size: int = Field(default=50, gt=0, le=500)
+    secret_key: str = Field(min_length=16)  # required: no default
+
+
+@lru_cache
+def get_settings() -&gt; Settings:
+    return Settings()
+
+
+SettingsDep = Annotated[Settings, Depends(get_settings)]
+app = FastAPI()
+
+
+@app.get(&#x27;/info&#x27;)
+def info(settings: SettingsDep) -&gt; dict:
+    # Never return the secret itself!
+    return {
+        &#x27;app_name&#x27;: settings.app_name,
+        &#x27;debug&#x27;: settings.debug,
+        &#x27;max_page_size&#x27;: settings.max_page_size,
+        &#x27;secret_key_length&#x27;: len(settings.secret_key),
+    }</code></pre>
+    <p class="code-caption">تنظیمات تایپ‌دار: نمونه <bdi dir="ltr">07_settings/app.py</bdi></p>
+    <p><code>Settings()</code> مقدارها را از متغیرهای محیطی می‌خواند، به نوع درست تبدیل می‌کند و اگر مقدار اجباری نباشد، هنگام <strong>راه‌اندازی</strong> با صدای بلند شکست می‌خورد، نه وسط یک درخواست. <code>@lru_cache</code> شیء را یک بار می‌سازد و چون <code>get_settings</code> یک وابستگی است، در آزمون‌های فصل سیزدهم می‌توان آن را جایگزین کرد.</p>
+    <div class="warn">
+        <span class="box-title">فایل .env را در Git نگذارید</span>
+        <p>فقط <code>.env.example</code> با مقدارهای ساختگی در مخزن قرار می‌گیرد. هر کس مخزن را می‌گیرد آن را کپی می‌کند و مقدارهای خودش را می‌نویسد.</p>
+    </div>
+    <p>وابستگی‌ها را می‌توان برای کل یک روتر یا کل برنامه هم تعریف کرد: <code>APIRouter(dependencies=[Depends(require_api_key)])</code>. با این کار همه endpointهای آن روتر محافظت می‌شوند و فراموش کردن محافظت روی endpoint تازه ممکن نیست (نمونه ۰۸).</p>
+
+    <h2 id="s8">۸. ساختار پروژه: هر فایل، یک سؤال</h2>
+    <pre class="out">09_project/
+├── main.py              سرور را راه می‌اندازد
+├── .env.example         به .env کپی کنید
+└── app/
+    ├── main.py          برنامه FastAPI را می‌سازد
+    ├── config.py        تنظیمات
+    ├── exceptions.py    خطاهای کسب‌وکار و handler آنها
+    ├── schemas.py       مدل‌های Pydantic (از فصل ۳)
+    ├── store.py         داده در حافظه (پایگاه داده در فصل ۵)
+    ├── services.py      قواعد کسب‌وکار، بدون HTTP
+    ├── deps.py          وابستگی‌ها: تنظیمات، سرویس‌ها، صفحه‌بندی، کلید مدیر
+    └── routers/         لایه نازک HTTP: درخواست را بخوان، سرویس را صدا بزن</pre>
+    <p>این تنها ساختار درست دنیا نیست. اما هر فایل به <strong>یک سؤال</strong> پاسخ می‌دهد و می‌دانید کجا را نگاه کنید. همه این فایل‌ها با همین وظیفه تا پایان دوره باقی می‌مانند.</p>
+    <pre class="code"><code>SettingsDep = Annotated[Settings, Depends(get_settings)]
+StoreDep = Annotated[Store, Depends(get_store)]
+
+
+@dataclass
+class Paging:
+    offset: int
+    limit: int
+
+
+def get_paging(settings: SettingsDep, page: int = 1, size: int = 10) -&gt; Paging:
+    size = max(1, min(size, settings.max_page_size))
+    return Paging(offset=(max(page, 1) - 1) * size, limit=size)
+
+
+PagingDep = Annotated[Paging, Depends(get_paging)]
+
+
+def get_course_service(store: StoreDep) -&gt; CourseService:
+    return CourseService(store)
+
+
+def get_user_service(store: StoreDep) -&gt; UserService:
+    return UserService(store)
+
+
+CourseServiceDep = Annotated[CourseService, Depends(get_course_service)]
+UserServiceDep = Annotated[UserService, Depends(get_user_service)]
+
+
+def get_enrollment_service(
+    store: StoreDep, courses: CourseServiceDep, users: UserServiceDep
+) -&gt; EnrollmentService:
+    return EnrollmentService(store, courses, users)
+
+
+EnrollmentServiceDep = Annotated[EnrollmentService, Depends(get_enrollment_service)]
+
+
+def require_admin_key(
+    settings: SettingsDep, x_api_key: Annotated[str | None, Header()] = None
+) -&gt; None:
+    &quot;&quot;&quot;Temporary &quot;authentication&quot;: sessions 9-10 replace it with real users + JWT.&quot;&quot;&quot;
+    if x_api_key != settings.admin_api_key:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=&#x27;Invalid or missing X-API-Key&#x27;)
+
+
+AdminOnly = Depends(require_admin_key)</code></pre>
+    <p class="code-caption">همه وابستگی‌ها در یک فایل: <bdi dir="ltr">09_project/app/deps.py</bdi></p>
+    <pre class="code"><code>@router.get(&#x27;&#x27;)
+def list_courses(
+    service: CourseServiceDep, paging: PagingDep, level: Level | None = None, q: str | None = None
+) -&gt; list[CourseRead]:
+    return service.list_courses(level=level, q=q, offset=paging.offset, limit=paging.limit)
+
+
+@router.get(&#x27;/{course_id}&#x27;)
+def get_course(course_id: int, service: CourseServiceDep) -&gt; CourseRead:
+    return service.get(course_id)
+
+
+@router.post(&#x27;&#x27;, status_code=status.HTTP_201_CREATED, dependencies=[AdminOnly])
+def create_course(data: CourseCreate, service: CourseServiceDep) -&gt; CourseRead:
+    return service.create(data)
+
+
+@router.patch(&#x27;/{course_id}&#x27;, dependencies=[AdminOnly])
+def update_course(course_id: int, data: CourseUpdate, service: CourseServiceDep) -&gt; CourseRead:
+    return service.update(course_id, data)
+
+
+@router.delete(&#x27;/{course_id}&#x27;, status_code=status.HTTP_204_NO_CONTENT, dependencies=[AdminOnly])
+def delete_course(course_id: int, service: CourseServiceDep) -&gt; None:
+    service.delete(course_id)</code></pre>
+    <p class="code-caption">روتر نازک: <bdi dir="ltr">09_project/app/routers/courses.py</bdi></p>
+    <p>در روترها هیچ <code>if</code>ی نیست. همه تصمیم‌ها در سرویس‌هاست:</p>
+    <pre class="code"><code>    def enroll(self, course_id: int, student_id: int) -&gt; EnrollmentRead:
+        course = self.courses.get(course_id)
+        student = self.users.get(student_id)
+        if student.role != &#x27;student&#x27;:
+            raise BusinessRuleError(&#x27;Only students can enroll&#x27;)
+        active = self.for_course(course_id)
+        if any(e.student_id == student_id for e in active):
+            raise ConflictError(&#x27;Already enrolled&#x27;)
+        if len(active) &gt;= course.capacity:
+            raise ConflictError(&#x27;Course is full&#x27;)
+        enrollment = EnrollmentRead(
+            id=self.store.next_id(self.store.enrollments),
+            student_id=student_id,
+            course_id=course_id,
+            created_at=now(),
+        )
+        self.store.enrollments[enrollment.id] = enrollment
+        return enrollment</code></pre>
+    <p class="code-caption">قاعده ثبت‌نام در سرویس: <bdi dir="ltr">09_project/app/services.py</bdi></p>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>مسیر یک درخواست را دنبال کنید: <code>POST /courses/2/enrollments</code>. همه فایل‌ها و توابعی را که به ترتیب اجرا می‌شوند روی کاغذ بنویسید: روتر، وابستگی‌ها، سرویس، مخزن و در صورت خطا handler.</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S04-dependency-injection</code> نه پوشه دارد. نمونه ۰۷ به فایل <code>.env</code> نیاز دارد: <code>.env.example</code> را به <code>.env</code> کپی کنید. پروژه با <code>python main.py</code> در <code>09_project</code> اجرا می‌شود و در Bruno کلید مدیر در متغیر <code>adminKey</code> محیط <strong>local</strong> است و در هدر <code>X-API-Key</code> فرستاده می‌شود.</p>
+    </div>
+
+    <h2 id="s9">۹. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>Depends(func)</code></td><td>FastAPI تابع را صدا می‌زند و نتیجه را تحویل می‌دهد</td></tr>
+                <tr><td><code>X = Annotated[T, Depends(f)]</code></td><td>وابستگی آماده برای استفاده دوباره</td></tr>
+                <tr><td><code>Depends()</code> روی یک کلاس</td><td>پارامترهای <code>__init__</code> از درخواست خوانده می‌شوند</td></tr>
+                <tr><td>وابستگی با <code>yield</code></td><td>آماده‌سازی و پاک‌سازی دور هر درخواست</td></tr>
+                <tr><td><code>Header()</code>، <code>Cookie()</code>، <code>set_cookie</code></td><td>خواندن و نوشتن هدر و کوکی</td></tr>
+                <tr><td><code>@app.exception_handler</code> یا <code>add_exception_handler</code></td><td>تبدیل خطای کسب‌وکار به پاسخ JSON</td></tr>
+                <tr><td><code>BaseSettings</code> و <code>.env</code></td><td>تنظیمات تایپ‌دار از محیط</td></tr>
+                <tr><td><code>dependencies=[...]</code> روی روتر</td><td>محافظت از همه endpointهای یک روتر</td></tr>
+                <tr><td>سرویس</td><td>قواعد کسب‌وکار، جدا از HTTP</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_depends_basics</code> کاری کنید که <code>page=0</code> به جای اصلاح بی‌صدا، ۴۲۲ بگیرد (راهنما: <code>Annotated[int, Query(ge=1)]</code>).</li>
+            <li>در <code>02_annotated_dependencies</code> وابستگی‌ای بسازید که یک <code>uuid4</code> برگرداند و ثابت کنید endpoint و <code>get_paging</code> هر دو همان مقدار را می‌گیرند.</li>
+            <li>در <code>04_yield_dependencies</code> کاری کنید که <code>/fail</code> یک <code>ZeroDivisionError</code> بدهد. آیا بازگرداندن هنوز چاپ می‌شود؟ کلاینت چه می‌گیرد؟</li>
+            <li>در <code>06_exception_handlers</code> خطای <code>CourseFullError</code> را با کد ۴۰۹ اضافه کنید. آیا handler تازه لازم است؟ چرا نه؟</li>
+            <li>در پروژه <code>GET /users/{user_id}/enrollments</code> را اضافه کنید. در کدام روتر و کدام سرویس؟</li>
+            <li>قاعده «دانشجو در بیش از سه دوره ثبت‌نام نکند» را به <code>EnrollmentService</code> اضافه کنید و یک درخواست Bruno بنویسید که قاعده را بشکند.</li>
+            <li>در یک اسکریپت کوچک با <code>app.dependency_overrides[get_store]</code> یک <code>Store</code> تازه جایگزین کنید.</li>
+            <li><strong>تکلیف:</strong> API کتابخانه را به همین ساختار دربیاورید و تنظیم‌های <code>LIBRARY_NAME</code> و <code>MAX_LOANS_PER_MEMBER</code> را از <code>.env</code> بخوانید.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-03.html">فصل قبل: Pydantic: اعتبارسنجی و طرح‌واره‌ها</a>
+        <a href="chapter-05.html">فصل بعد: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</a>
+    </div>
+
+</main>
+
+</body>
+</html>

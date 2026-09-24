@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل صفر: مقدمه: آماده‌سازی محیط کار. بک‌اند چیست، پایتون و محیط مجازی، VS Code، Bruno، SQLite و Docker، اجرای اولین سرور">
+    <title>فصل ۰: مقدمه: آماده‌سازی محیط کار</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۰</span>
+        <h1>مقدمه: آماده‌سازی محیط کار</h1>
+        <p class="lead">پیش از جلسه اول، محیط کار را آماده می‌کنیم: پایتون و محیط مجازی، VS Code، برنامه Bruno برای آزمودن API، یک نمایشگر SQLite و در صورت نیاز Docker. در پایان فصل، اولین سرور FastAPI را اجرا می‌کنیم تا مطمئن شویم همه چیز سر جایش است.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">بک‌اند چیست و FastAPI کجای کار است</a></li>
+            <li><a href="#s2">پایتون و محیط مجازی</a></li>
+            <li><a href="#s3">ویرایشگر VS Code</a></li>
+            <li><a href="#s4">Bruno: میز کار API</a></li>
+            <li><a href="#s5">SQLite و در صورت نیاز Docker</a></li>
+            <li><a href="#s6">اولین سرور</a></li>
+            <li><a href="#s7">نقشه راه دوره</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. بک‌اند چیست و FastAPI کجای کار است</h2>
+    <p>وقتی در یک اپلیکیشن ثبت‌نام می‌کنید، آنچه روی صفحه می‌بینید <strong>فرانت‌اند</strong> است. اما ذخیره کاربر، بررسی رمز، پیدا کردن دوره‌ها و جلوگیری از ثبت‌نام بیش از ظرفیت در جای دیگری اتفاق می‌افتد: روی یک سرور، در برنامه‌ای که <strong>بک‌اند</strong> نام دارد. فرانت‌اند و بک‌اند با هم از راه <strong>HTTP</strong> حرف می‌زنند و بک‌اند معمولاً پاسخ‌هایش را به شکل <strong>JSON</strong> برمی‌گرداند. به چنین بک‌اندی یک <strong>API</strong> می‌گوییم.</p>
+    <p>FastAPI یک چارچوب پایتونی برای ساختن همین API‌هاست. سه ویژگی آن را محبوب کرده است:</p>
+    <ul>
+        <li>از <strong>راهنمای نوع</strong> پایتون (type hints) استفاده می‌کند: همان <code>int</code> و <code>str | None</code> که در دوره پیشرفته دیدید، اینجا داده ورودی را خودکار تبدیل و بررسی می‌کند.</li>
+        <li>برای هر API یک <strong>مستند زنده</strong> می‌سازد که در مرورگر باز می‌شود و می‌توان همان‌جا درخواست فرستاد.</li>
+        <li>از پایه برای <code>async</code> ساخته شده است و هزاران درخواست هم‌زمان را با یک فرایند پاسخ می‌دهد.</li>
+    </ul>
+    <div class="note">
+        <span class="box-title">چرا Flask نه؟</span>
+        <p>اگر دوره پایتون پیشرفته را گذرانده باشید، Flask را دیده‌اید. Flask برای سایت‌هایی با قالب HTML عالی است. FastAPI برای API ساخته شده است: اعتبارسنجی، مستندسازی و تزریق وابستگی در خودش هست و لازم نیست جداگانه اضافه شود.</p>
+    </div>
+
+    <h2 id="s2">۲. پایتون و محیط مجازی</h2>
+    <p>نسخه ۳٫۱۲ یا بالاتر پایتون را از <a href="https://www.python.org" target="_blank">python.org</a> نصب کنید. در ویندوز، هنگام نصب گزینه <strong>Add python.exe to PATH</strong> را حتماً تیک بزنید. بعد در ترمینال بررسی کنید:</p>
+    <pre class="out">python --version
+Python 3.13.5</pre>
+    <p>هر جلسه این دوره پوشه خودش و فایل <code>requirements.txt</code> خودش را دارد. کتابخانه‌ها را هرگز روی پایتون اصلی سیستم نصب نکنید؛ برای هر جلسه یا پروژه یک <strong>محیط مجازی</strong> بسازید:</p>
+    <pre class="out">cd S02-fastapi-first-steps
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+source .venv/bin/activate         # Linux / macOS
+pip install -r requirements.txt</pre>
+    <p>بعد از فعال شدن محیط، نام آن در ابتدای خط ترمینال دیده می‌شود: <code>(.venv)</code>. هر بار که ترمینال تازه‌ای باز می‌کنید، باید دوباره فعالش کنید.</p>
+    <div class="warn">
+        <span class="box-title">پوشه .venv را هرگز در Git نگذارید</span>
+        <p>محیط مجازی با یک فرمان از روی <code>requirements.txt</code> دوباره ساخته می‌شود. به همین دلیل در فایل <code>.gitignore</code> مخزن آمده است. همین‌طور فایل‌های <code>.env</code> که رمز و کلید دارند.</p>
+    </div>
+
+    <h2 id="s3">۳. ویرایشگر VS Code</h2>
+    <p><a href="https://code.visualstudio.com" target="_blank">VS Code</a> را نصب کنید و این افزونه‌ها را اضافه کنید:</p>
+    <ul>
+        <li><strong>Python</strong> (از Microsoft): اجرا، اشکال‌زدایی و انتخاب محیط مجازی.</li>
+        <li><strong>Pylance</strong>: بررسی نوع‌ها هنگام نوشتن. در این دوره خیلی به کارتان می‌آید، چون همه کدها راهنمای نوع دارند.</li>
+        <li><strong>SQLite Viewer</strong>: دیدن محتوای فایل‌های <code>.db</code> بدون نصب برنامه جداگانه.</li>
+    </ul>
+    <p>پوشه یک جلسه را با <strong>File → Open Folder</strong> باز کنید و از پایین پنجره، مفسر پایتون را روی محیط مجازی همان پوشه بگذارید.</p>
+
+    <h2 id="s4">۴. Bruno: میز کار API</h2>
+    <p>در این دوره به جای مرورگر، با برنامه‌ای به نام <a href="https://www.usebruno.com" target="_blank">Bruno</a> به API درخواست می‌فرستیم. در Bruno روش (<code>GET</code>، <code>POST</code> و...)، نشانی، هدرها و بدنه JSON را می‌نویسید، دکمه ارسال را می‌زنید و کد وضعیت و پاسخ را می‌بینید.</p>
+    <p>دلیل انتخاب Bruno این است که هر مجموعه درخواست، یک پوشه از فایل‌های متنی ساده با پسوند <code>.bru</code> است. این پوشه کنار کد پروژه در Git قرار می‌گیرد و به حساب کاربری نیازی ندارد. از جلسه دوم، پروژه هر جلسه یک پوشه <code>bruno/</code> دارد. اگر با Postman آشنا هستید، آن هم کار می‌کند.</p>
+    <p>برای باز کردن یک مجموعه: <strong>Open Collection</strong> را بزنید، پوشه <code>bruno</code> پروژه را انتخاب کنید و از بالا سمت راست، محیط <strong>local</strong> را برگزینید.</p>
+    <pre class="out">meta {
+  name: Get course 1
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/courses/1
+  body: none
+  auth: none
+}
+
+tests {
+  test(&quot;status is 200&quot;, function() {
+    expect(res.status).to.equal(200);
+  });
+}</pre>
+    <p>هر فایل <code>.bru</code> یک درخواست است. <code>{{baseUrl}}</code> یک متغیر محیط است و بخش <code>tests</code> بعد از هر اجرا کد وضعیت را بررسی می‌کند.</p>
+
+    <h2 id="s5">۵. SQLite و در صورت نیاز Docker</h2>
+    <p>از فصل پنجم، پروژه یک پایگاه داده واقعی دارد. در کلاس از <strong>SQLite</strong> استفاده می‌کنیم: پایگاه داده‌ای که فقط یک فایل است و به نصب هیچ چیزی نیاز ندارد. پایتون آن را همراه خودش دارد.</p>
+    <p>سرورهای واقعی معمولاً از <strong>PostgreSQL</strong> استفاده می‌کنند. خوشبختانه با SQLAlchemy برای رفتن از SQLite به PostgreSQL فقط باید نشانی اتصال را عوض کرد. برای اجرای PostgreSQL بدون نصب آن، از <strong>Docker</strong> استفاده می‌کنیم؛ کافی است <a href="https://www.docker.com/products/docker-desktop/" target="_blank">Docker Desktop</a> را نصب کنید. فصل پنجم تنها فرمان‌هایی را که لازم است نشان می‌دهد و این دوره آموزش Docker نیست.</p>
+
+    <h2 id="s6">۶. اولین سرور</h2>
+    <p>برای اطمینان از اینکه همه چیز درست نصب شده است، اولین برنامه FastAPI را اجرا کنید:</p>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI(title=&#x27;Training Center API&#x27;, version=&#x27;0.1.0&#x27;)
+
+
+@app.get(&#x27;/&#x27;)
+def home() -&gt; dict[str, str]:
+    return {&#x27;message&#x27;: &#x27;Welcome to the Training Center API&#x27;}
+
+
+@app.get(&#x27;/about&#x27;)
+def about() -&gt; dict[str, str | int]:
+    &quot;&quot;&quot;This docstring appears in /docs.&quot;&quot;&quot;
+    return {&#x27;institute&#x27;: &#x27;Kadoos&#x27;, &#x27;city&#x27;: &#x27;Rasht&#x27;, &#x27;sessions&#x27;: 16}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">اولین سرور: نمونه <bdi dir="ltr">S02-fastapi-first-steps/01_first_app/app.py</bdi></p>
+    <pre class="out">cd S02-fastapi-first-steps/01_first_app
+python app.py
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)</pre>
+    <p>حالا این سه نشانی را در مرورگر باز کنید:</p>
+    <ul>
+        <li><code>http://127.0.0.1:8000/</code> : پاسخ JSON برنامه.</li>
+        <li><code>http://127.0.0.1:8000/docs</code> : رابط Swagger. روی هر endpoint بزنید، <strong>Try it out</strong> و بعد <strong>Execute</strong> را انتخاب کنید.</li>
+        <li><code>http://127.0.0.1:8000/redoc</code> : همان مستند، برای خواندن.</li>
+    </ul>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>در فایل <code>app.py</code> پیام خوش‌آمدگویی را عوض کنید و فایل را ذخیره کنید. سرور خودش دوباره راه می‌افتد (به خاطر <code>reload=True</code>). صفحه را تازه کنید و تغییر را ببینید.</p>
+    </div>
+
+    <h2 id="s7">۷. نقشه راه دوره</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>جلسه</th><th>موضوع</th><th>قدم پروژه</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>۱</td><td>مرور پایتون پیشرفته، HTTP و REST</td><td>هسته پروژه با پایتون خالص</td></tr>
+                <tr><td>۲</td><td>قدم‌های اول FastAPI</td><td>اولین API با داده در حافظه</td></tr>
+                <tr><td>۳</td><td>Pydantic و اعتبارسنجی</td><td>طرح‌واره‌های ورودی و خروجی</td></tr>
+                <tr><td>۴</td><td>تزریق وابستگی و ساختار</td><td>پروژه به یک بسته منظم تبدیل می‌شود</td></tr>
+                <tr><td>۵</td><td>مدل‌های SQLAlchemy</td><td>پایگاه داده واقعی</td></tr>
+                <tr><td>۶</td><td>CRUD با SQLAlchemy</td><td>ویرایش و حذف و جست‌وجو</td></tr>
+                <tr><td>۷</td><td>رابطه‌ها</td><td>ثبت‌نام دانشجو در دوره</td></tr>
+                <tr><td>۸</td><td>Alembic و صفحه‌بندی</td><td>مهاجرت و فهرست حرفه‌ای</td></tr>
+                <tr><td>۹</td><td>احراز هویت</td><td>ثبت‌نام و ورود با رمز امن</td></tr>
+                <tr><td>۱۰</td><td>JWT و نقش‌ها</td><td>دسترسی بر اساس نقش و مالکیت</td></tr>
+                <tr><td>۱۱</td><td>فایل، کوکی و CORS</td><td>فایل‌های درسی</td></tr>
+                <tr><td>۱۲</td><td>async</td><td>تبدیل کامل پروژه به ناهمگام</td></tr>
+                <tr><td>۱۳</td><td>آزمون خودکار</td><td>پنجاه و یک آزمون برای پروژه</td></tr>
+                <tr><td>۱۴</td><td>کلاینت REST</td><td>کلاینت پایتونی پروژه</td></tr>
+                <tr><td>۱۵</td><td>کلاینت async</td><td>برنامه داشبورد مدرس</td></tr>
+                <tr><td>۱۶</td><td>پروژه پایانی</td><td>رفع باگ، تکمیل و بازبینی کد</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>فایل‌های دوره در شانزده پوشه به نام‌های <code>S01-...</code> تا <code>S16-...</code> قرار دارند. هر پوشه یک <code>README.md</code> با هدف جلسه و تقسیم زمان، یک <code>exercises.md</code> با تمرین‌ها و یک <code>requirements.txt</code> دارد. نمونه‌ها شماره‌گذاری شده‌اند و آخرین پوشه هر جلسه پروژه همان جلسه است.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>کاربرد</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>python -m venv .venv</code></td><td>ساختن محیط مجازی برای هر جلسه</td></tr>
+                <tr><td><code>pip install -r requirements.txt</code></td><td>نصب کتابخانه‌های همان جلسه</td></tr>
+                <tr><td>VS Code + Python + Pylance</td><td>نوشتن کد با بررسی نوع</td></tr>
+                <tr><td>Bruno</td><td>فرستادن و آزمودن درخواست‌ها، ذخیره آنها در Git</td></tr>
+                <tr><td>SQLite</td><td>پایگاه داده بدون نصب، برای کلاس</td></tr>
+                <tr><td>Docker</td><td>اجرای PostgreSQL بدون نصب آن</td></tr>
+                <tr><td><code>/docs</code> و <code>/redoc</code></td><td>مستند زنده‌ای که FastAPI می‌سازد</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>پایتون و VS Code را نصب کنید و نسخه پایتون را بررسی کنید.</li>
+            <li>برای پوشه <code>S02-fastapi-first-steps</code> یک محیط مجازی بسازید و کتابخانه‌ها را نصب کنید.</li>
+            <li>نمونه <code>01_first_app</code> را اجرا کنید و هر سه نشانی <code>/</code>، <code>/docs</code> و <code>/redoc</code> را باز کنید.</li>
+            <li>Bruno را نصب کنید و مجموعه <code>S01-python-refresh-and-rest/13_bruno_first_requests</code> را باز کنید. هر چهار درخواست را اجرا کنید.</li>
+            <li>در Bruno یک درخواست تازه بسازید که <code>GET http://127.0.0.1:8000/about</code> را صدا بزند.</li>
+            <li>اگر Docker دارید، در پوشه <code>S05-sqlalchemy-models/05_postgresql_with_docker</code> فرمان <code>docker compose up -d</code> را بزنید و با <code>docker compose ps</code> وضعیت پایگاه داده را ببینید.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="index.html">فهرست مطالب</a>
+        <a href="chapter-01.html">فصل بعد: مرور پایتون پیشرفته، HTTP و REST</a>
+    </div>
+
+</main>
+
+</body>
+</html>

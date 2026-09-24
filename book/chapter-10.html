@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل ده: JWT، کاربر جاری و نقش‌ها. ساختار JWT، امضا و جعل، انقضا، get_current_user، کارخانه require_roles، ۴۰۱ و ۴۰۳، قاعده مالکیت، OAuth2 scopes">
+    <title>فصل ۱۰: JWT، کاربر جاری و نقش‌ها</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۰</span>
+        <h1>JWT، کاربر جاری و نقش‌ها</h1>
+        <p class="lead">ورود موفق را به یک توکن دسترسی JWT تبدیل می‌کنیم، در هر درخواست می‌فهمیم چه کسی صدا زده است و تصمیم می‌گیریم چه کاری مجاز است: نقش‌های مدیر، مدرس و دانشجو با یک کارخانه وابستگی قابل استفاده دوباره، و قاعده‌هایی که به داده بستگی دارند، مثل «مدرس فقط دوره‌های خودش را تغییر دهد». کلید موقت X-API-Key فصل‌های پیش حذف می‌شود و بیشتر وقت کلاس به حمله به این قاعده‌ها از Bruno می‌گذرد.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">JWT: کارت شناسایی امضاشده‌ای که کلاینت نگه می‌دارد</a></li>
+            <li><a href="#s2">ادعاها و انقضا</a></li>
+            <li><a href="#s3">وابستگی کاربر جاری</a></li>
+            <li><a href="#s4">نقش‌ها: کارخانه وابستگی</a></li>
+            <li><a href="#s5">فراتر از نقش: قاعده مالکیت</a></li>
+            <li><a href="#s6">OAuth2 scopes، برای شناختن</a></li>
+            <li><a href="#s7">پروژه: JWT و نقش‌ها</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. JWT: کارت شناسایی امضاشده‌ای که کلاینت نگه می‌دارد</h2>
+    <p>یک JWT سه بخش base64 است که با نقطه از هم جدا شده‌اند:</p>
+    <pre class="out">header . payload . signature
+{&quot;alg&quot;:&quot;HS256&quot;} . {&quot;sub&quot;:&quot;7&quot;,&quot;role&quot;:&quot;student&quot;,&quot;exp&quot;:...} . &lt;HMAC of both&gt;</pre>
+    <ul>
+        <li>payload فقط <strong>کدگذاری</strong> شده است، رمزگذاری نشده: هر کسی می‌تواند آن را بخواند. هرگز رمز یا راز در آن نگذارید.</li>
+        <li>امضا با <strong>کلید مخفی سرور</strong> ساخته می‌شود. یک حرف payload را عوض کنید و امضا دیگر جور نیست؛ سرور توکن را رد می‌کند.</li>
+        <li>پس سرور لازم نیست توکن‌ها را ذخیره کند: امضا را بررسی می‌کند و به ادعاهای درون توکن اعتماد می‌کند.</li>
+    </ul>
+    <pre class="code"><code>def main() -&gt; None:
+    token = jwt.encode({&#x27;sub&#x27;: &#x27;7&#x27;, &#x27;role&#x27;: &#x27;student&#x27;}, SECRET_KEY, algorithm=ALGORITHM)
+    print(token)
+
+    header, payload, signature = token.split(&#x27;.&#x27;)
+    padded = payload + &#x27;=&#x27; * (-len(payload) % 4)
+    print(&#x27;anyone can read the payload:&#x27;, json.loads(base64.urlsafe_b64decode(padded)))
+
+    print(&#x27;decoded by the server:&#x27;, jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]))
+
+    # A student makes themself admin by editing the payload...
+    fake_payload = base64.urlsafe_b64encode(b&#x27;{&quot;sub&quot;:&quot;7&quot;,&quot;role&quot;:&quot;admin&quot;}&#x27;).decode().rstrip(&#x27;=&#x27;)
+    forged = f&#x27;{header}.{fake_payload}.{signature}&#x27;
+    try:
+        jwt.decode(forged, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.InvalidSignatureError as error:
+        print(&#x27;forged token rejected:&#x27;, error)
+
+    try:
+        jwt.decode(token, &#x27;another-server-with-another-secret-key-0000000&#x27;, algorithms=[ALGORITHM])
+    except jwt.InvalidSignatureError as error:
+        print(&#x27;wrong key rejected   :&#x27;, error)
+
+    # `algorithms=[...]` is a white list: never let the token choose (&quot;alg&quot;: &quot;none&quot; attack)
+    unsigned = jwt.encode({&#x27;sub&#x27;: &#x27;1&#x27;, &#x27;role&#x27;: &#x27;admin&#x27;}, key=None, algorithm=&#x27;none&#x27;)
+    try:
+        jwt.decode(unsigned, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.InvalidAlgorithmError as error:
+        print(&#x27;alg=none rejected    :&#x27;, error)</code></pre>
+    <p class="code-caption">خواندن، جعل و رد شدن: نمونه <bdi dir="ltr">01_jwt_encode_decode/app.py</bdi></p>
+    <pre class="out">anyone can read the payload: {&#x27;sub&#x27;: &#x27;7&#x27;, &#x27;role&#x27;: &#x27;student&#x27;}
+forged token rejected: Signature verification failed
+wrong key rejected   : Signature verification failed
+alg=none rejected    : The specified alg value is not allowed</pre>
+    <div class="warn">
+        <span class="box-title">algorithms یک فهرست سفید است</span>
+        <p>در <code>jwt.decode(..., algorithms=[&#x27;HS256&#x27;])</code> هرگز نگذارید خود توکن الگوریتم را انتخاب کند. حمله معروف <code>&quot;alg&quot;: &quot;none&quot;</code> توکنی بی‌امضا می‌فرستد و امیدوار است سرور آن را بپذیرد.</p>
+    </div>
+
+    <h2 id="s2">۲. ادعاها و انقضا</h2>
+    <p>ادعاهای استاندارد: <code>sub</code> یعنی چه کسی (یک <strong>رشته</strong>، طبق قاعده JWT)، <code>exp</code> زمان انقضا و <code>iat</code> زمان صدور. به‌علاوه ادعای خود ما: <code>role</code>.</p>
+    <pre class="code"><code>def create_token(user_id: int, minutes: float) -&gt; str:
+    now = datetime.now(UTC)
+    claims = {&#x27;sub&#x27;: str(user_id), &#x27;iat&#x27;: now, &#x27;exp&#x27;: now + timedelta(minutes=minutes)}
+    return jwt.encode(claims, SECRET_KEY, algorithm=&#x27;HS256&#x27;)
+
+
+def check(token: str, leeway: int = 0) -&gt; str:
+    try:
+        claims = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[&#x27;HS256&#x27;],
+            options={&#x27;require&#x27;: [&#x27;exp&#x27;, &#x27;iat&#x27;, &#x27;sub&#x27;]},
+            leeway=leeway,
+        )
+    except jwt.ExpiredSignatureError:
+        return &#x27;EXPIRED -&gt; 401, please log in again&#x27;
+    except jwt.MissingRequiredClaimError as error:
+        return f&#x27;INVALID -&gt; {error}&#x27;
+    expires = datetime.fromtimestamp(claims[&#x27;exp&#x27;], UTC)
+    return f&#x27;valid for user {claims[&quot;sub&quot;]}, expires {expires:%H:%M:%S}&#x27;</code></pre>
+    <p class="code-caption">انقضا و ادعاهای الزامی: نمونه <bdi dir="ltr">02_token_expiry/app.py</bdi></p>
+    <p>توکن دزدیده‌شده تا زمان انقضا کار می‌کند؛ سرور فهرستی ندارد که آن را از رویش پاک کند. پس توکن‌های دسترسی عمر کوتاهی دارند، معمولاً پانزده تا شصت دقیقه.</p>
+
+    <h2 id="s3">۳. وابستگی کاربر جاری</h2>
+    <pre class="code"><code>@app.post(&#x27;/auth/token&#x27;)
+def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -&gt; dict[str, str]:
+    user = next((u for u in USERS.values() if u.email == form.username.lower()), None)
+    if user is None or not password_hash.verify(form.password, user.hashed_password):
+        raise CREDENTIALS_ERROR
+    expires = datetime.now(UTC) + timedelta(minutes=30)
+    token = jwt.encode(
+        {&#x27;sub&#x27;: str(user.id), &#x27;role&#x27;: user.role, &#x27;exp&#x27;: expires}, SECRET_KEY, ALGORITHM
+    )
+    return {&#x27;access_token&#x27;: token, &#x27;token_type&#x27;: &#x27;bearer&#x27;}
+
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -&gt; User:
+    try:
+        claims = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.InvalidTokenError:  # bad signature, expired, malformed...
+        raise CREDENTIALS_ERROR from None
+    user = USERS.get(int(claims[&#x27;sub&#x27;]))
+    if user is None:
+        raise CREDENTIALS_ERROR
+    if not user.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=&#x27;Account disabled&#x27;)
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+@app.get(&#x27;/users/me&#x27;)
+def read_me(user: CurrentUser) -&gt; dict:
+    return {&#x27;id&#x27;: user.id, &#x27;email&#x27;: user.email, &#x27;role&#x27;: user.role}</code></pre>
+    <p class="code-caption">از توکن تا کاربر: نمونه <bdi dir="ltr">03_current_user/app.py</bdi></p>
+    <p><code>get_current_user</code> قلب ماجراست:</p>
+    <ol>
+        <li><code>OAuth2PasswordBearer</code> هدر را می‌خواند (اگر نباشد ۴۰۱).</li>
+        <li>JWT رمزگشایی و امضا و انقضایش بررسی می‌شود (اگر نامعتبر باشد ۴۰۱).</li>
+        <li>کاربر از «پایگاه داده» بارگذاری می‌شود (اگر نباشد ۴۰۱ و اگر غیرفعال باشد ۴۰۳).</li>
+    </ol>
+    <p>هر endpoint محافظت‌شده فقط <code>CurrentUser</code> را می‌خواهد. همین.</p>
+
+    <h2 id="s4">۴. نقش‌ها: کارخانه وابستگی</h2>
+    <pre class="code"><code>def require_roles(*roles: str) -&gt; Callable[[User], User]:
+    def checker(user: CurrentUser) -&gt; User:
+        if user.role not in roles:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, detail=f&#x27;Requires one of the roles: {&quot;, &quot;.join(roles)}&#x27;
+            )
+        return user
+
+    return checker
+
+
+AdminUser = Annotated[User, Depends(require_roles(&#x27;admin&#x27;))]
+StaffUser = Annotated[User, Depends(require_roles(&#x27;admin&#x27;, &#x27;instructor&#x27;))]
+StudentUser = Annotated[User, Depends(require_roles(&#x27;student&#x27;))]
+
+
+@app.get(&#x27;/users/me&#x27;)
+def me(user: CurrentUser) -&gt; User:
+    return user
+
+
+@app.post(&#x27;/courses&#x27;)
+def create_course(user: StaffUser) -&gt; dict[str, str]:
+    return {&#x27;created by&#x27;: user.email}
+
+
+@app.delete(&#x27;/courses/{course_id}&#x27;)
+def delete_course(course_id: int, admin: AdminUser) -&gt; dict[str, str | int]:
+    return {&#x27;deleted&#x27;: course_id, &#x27;by&#x27;: admin.email}
+
+
+@app.post(&#x27;/courses/{course_id}/enrollments&#x27;)
+def enroll(course_id: int, student: StudentUser) -&gt; dict[str, str | int]:
+    return {&#x27;enrolled&#x27;: student.email, &#x27;course&#x27;: course_id}</code></pre>
+    <p class="code-caption">require_roles و نام‌های مستعار: نمونه <bdi dir="ltr">04_role_dependency/app.py</bdi></p>
+    <p>این همان تابع مرتبه بالای فصل اول است: <code>require_roles</code> یک بستار برمی‌گرداند که <code>roles</code> را به خاطر دارد. endpointها مثل یک جمله خوانده می‌شوند: <code>def delete_course(course_id: int, admin: AdminUser)</code>.</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>کاربر</th><th>ساختن دوره</th><th>حذف دوره</th><th>ثبت‌نام</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>admin@kadoos.ir</td><td>۲۰۰</td><td>۲۰۰</td><td>۴۰۳</td></tr>
+                <tr><td>teacher@kadoos.ir</td><td>۲۰۰</td><td>۴۰۳</td><td>۴۰۳</td></tr>
+                <tr><td>sara@example.com</td><td>۴۰۳</td><td>۴۰۳</td><td>۲۰۰</td></tr>
+                <tr><td>بدون توکن</td><td>۴۰۱</td><td>۴۰۱</td><td>۴۰۱</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s5">۵. فراتر از نقش: قاعده مالکیت</h2>
+    <p>نقش می‌گوید کاربر از چه <strong>نوعی</strong> است. اما «مدرس دوره‌های <strong>خودش</strong> را تغییر دهد» را نقش به‌تنهایی نمی‌تواند تعیین کند؛ باید دوره را بارگذاری کنیم و <code>course.instructor_id</code> را با <code>user.id</code> مقایسه کنیم. این قاعده‌ها در سرویس، درست بعد از بارگذاری شیء، و به شکل توابع ساده بولی نوشته می‌شوند:</p>
+    <pre class="code"><code>&quot;&quot;&quot;Authorization rules that depend on the data, not only on the role.&quot;&quot;&quot;
+
+from app.exceptions import PermissionDeniedError
+from app.models import Course, User
+
+
+def can_manage_course(course: Course, user: User) -&gt; bool:
+    &quot;&quot;&quot;Admins manage every course; instructors only their own.&quot;&quot;&quot;
+    if user.role == &#x27;admin&#x27;:
+        return True
+    return user.role == &#x27;instructor&#x27; and course.instructor_id == user.id
+
+
+def ensure_can_manage_course(course: Course, user: User) -&gt; None:
+    if not can_manage_course(course, user):
+        raise PermissionDeniedError(&#x27;You can only manage your own courses&#x27;)</code></pre>
+    <p class="code-caption">قاعده‌های وابسته به داده: <bdi dir="ltr">07_project/app/permissions.py</bdi></p>
+
+    <h2 id="s6">۶. OAuth2 scopes، برای شناختن</h2>
+    <p>نقش‌ها درشت‌اند. <strong>scope</strong>ها توانایی‌های تکی را نام می‌برند: <code>courses:read</code>، <code>courses:write</code>. توکن فهرست scopeهای اعطاشده را دارد و هر endpoint با <code>Security(...)</code> به جای <code>Depends(...)</code> می‌گوید چه چیزی لازم دارد:</p>
+    <pre class="code"><code>def get_current_user(
+    security_scopes: SecurityScopes, token: Annotated[str, Depends(oauth2_scheme)]
+) -&gt; dict:
+    try:
+        claims = jwt.decode(token, SECRET_KEY, algorithms=[&#x27;HS256&#x27;])
+    except jwt.InvalidTokenError:
+        raise HTTPException(401, detail=&#x27;Invalid token&#x27;) from None
+    missing = [s for s in security_scopes.scopes if s not in claims[&#x27;scopes&#x27;]]
+    if missing:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail=f&#x27;Missing scopes: {missing}&#x27;,
+            headers={&#x27;WWW-Authenticate&#x27;: f&#x27;Bearer scope=&quot;{security_scopes.scope_str}&quot;&#x27;},
+        )
+    return claims
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses(
+    user: Annotated[dict, Security(get_current_user, scopes=[&#x27;courses:read&#x27;])],
+) -&gt; dict:
+    return {&#x27;courses&#x27;: [&#x27;FastAPI&#x27;], &#x27;your scopes&#x27;: user[&#x27;scopes&#x27;]}
+
+
+@app.post(&#x27;/courses&#x27;)
+def create_course(
+    user: Annotated[dict, Security(get_current_user, scopes=[&#x27;courses:write&#x27;])],
+) -&gt; dict:
+    return {&#x27;created by&#x27;: user[&#x27;sub&#x27;]}</code></pre>
+    <p class="code-caption">Security و SecurityScopes: نمونه <bdi dir="ltr">06_scopes/app.py</bdi></p>
+    <p>کاربرد رایج: یک برنامه شخص ثالث توکنی می‌گیرد که <strong>فقط</strong> <code>courses:read</code> دارد، حتی اگر کسی که به آن اجازه داده مدیر باشد. در این دوره مجوز را با نقش‌ها پیاده می‌کنیم؛ scopeها را معرفی می‌کنیم تا در پروژه‌های دیگر آنها را بشناسید.</p>
+
+    <h2 id="s7">۷. پروژه: JWT و نقش‌ها</h2>
+    <pre class="code"><code>def create_access_token(user_id: int, role: str, settings: Settings) -&gt; str:
+    now = datetime.now(UTC)
+    claims = {
+        &#x27;sub&#x27;: str(user_id),
+        &#x27;role&#x27;: role,
+        &#x27;iat&#x27;: now,
+        &#x27;exp&#x27;: now + timedelta(minutes=settings.access_token_expire_minutes),
+    }
+    return jwt.encode(claims, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def decode_access_token(token: str, settings: Settings) -&gt; TokenPayload:
+    &quot;&quot;&quot;Check signature and expiry; every problem becomes AuthenticationError (401).&quot;&quot;&quot;
+    try:
+        claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],  # a white list, never from the token
+            options={&#x27;require&#x27;: [&#x27;sub&#x27;, &#x27;exp&#x27;, &#x27;iat&#x27;]},
+        )
+        return TokenPayload.model_validate(claims)
+    except jwt.ExpiredSignatureError:
+        raise AuthenticationError(&#x27;Token has expired&#x27;) from None
+    except (jwt.InvalidTokenError, ValidationError):
+        raise AuthenticationError(&#x27;Could not validate credentials&#x27;) from None</code></pre>
+    <p class="code-caption">ساختن و بررسی توکن: <bdi dir="ltr">07_project/app/security.py</bdi></p>
+    <pre class="code"><code>SettingsDep = Annotated[Settings, Depends(get_settings)]
+DbSession = Annotated[Session, Depends(get_db)]
+
+# Reads &quot;Authorization: Bearer &lt;token&gt;&quot; (401 if missing) and adds the
+# Authorize button to /docs, which posts the login form to tokenUrl.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=&#x27;/auth/token&#x27;)
+TokenDep = Annotated[str, Depends(oauth2_scheme)]
+
+
+def get_current_user(token: TokenDep, db: DbSession, settings: SettingsDep) -&gt; User:
+    payload = decode_access_token(token, settings)
+    user = db.get(User, int(payload.sub))
+    if user is None:
+        raise AuthenticationError(&#x27;The user of this token no longer exists&#x27;)
+    if not user.is_active:
+        raise PermissionDeniedError(&#x27;This account is disabled&#x27;)
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_roles(*roles: str) -&gt; Callable[[User], User]:
+    &quot;&quot;&quot;A dependency factory: `Depends(require_roles(&#x27;admin&#x27;, &#x27;instructor&#x27;))`.&quot;&quot;&quot;
+
+    def checker(user: CurrentUser) -&gt; User:
+        if user.role not in roles:
+            raise PermissionDeniedError(f&#x27;This action requires the role: {&quot; or &quot;.join(roles)}&#x27;)
+        return user
+
+    return checker
+
+
+AdminUser = Annotated[User, Depends(require_roles(&#x27;admin&#x27;))]
+StaffUser = Annotated[User, Depends(require_roles(&#x27;admin&#x27;, &#x27;instructor&#x27;))]
+StudentUser = Annotated[User, Depends(require_roles(&#x27;student&#x27;))]</code></pre>
+    <p class="code-caption">کاربر جاری و نقش‌ها: <bdi dir="ltr">07_project/app/deps.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>کار</th><th>چه کسی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>دیدن دوره‌ها</td><td>همه</td></tr>
+                <tr><td>ساختن دوره</td><td>مدیر (مدرس را انتخاب می‌کند) یا مدرس (برای خودش)</td></tr>
+                <tr><td>تغییر دوره</td><td>مدیر، یا مدرسِ <strong>همان</strong> دوره</td></tr>
+                <tr><td>حذف دوره، مدیریت کاربران</td><td>مدیر</td></tr>
+                <tr><td>دیدن دانشجویان یک دوره</td><td>مدیر، یا مدرس آن دوره</td></tr>
+                <tr><td>ثبت‌نام و لغو</td><td>دانشجوی واردشده، برای خودش</td></tr>
+                <tr><td><code>/users/me</code> و ثبت‌نام‌های من</td><td>هر کاربر واردشده</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>در مجموعه Bruno این فصل، چهار درخواست ورود اول توکن‌ها را در متغیرهای <code>adminToken</code>، <code>teacherToken</code>، <code>teacher2Token</code> و <code>studentToken</code> ذخیره می‌کنند و بقیه درخواست‌ها از آنها استفاده می‌کنند. بیشتر درخواست‌ها <strong>عمداً</strong> باید ۴۰۱ یا ۴۰۳ بگیرند.</p>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>یک توکن پروژه را در <a href="https://jwt.io" target="_blank">jwt.io</a> بچسبانید. چه چیزی می‌توانید بخوانید؟ برای تغییر آن بدون اینکه لو بروید چه چیزی لازم دارید؟</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S10-jwt-and-roles</code> هفت پوشه دارد. در نمونه ۰۴ با دکمه <strong>Authorize</strong> در <code>/docs</code> با <code>admin@kadoos.ir</code>، <code>teacher@kadoos.ir</code> یا <code>sara@example.com</code> (رمز <code>Password123</code>) وارد شوید و همه endpointها را امتحان کنید. پروژه: <code>alembic upgrade head</code>، <code>python seed.py</code>، <code>python main.py</code>.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>jwt.encode</code>، <code>jwt.decode(..., algorithms=[...])</code></td><td>ساختن و بررسی توکن</td></tr>
+                <tr><td><code>sub</code>، <code>exp</code>، <code>iat</code>، <code>role</code></td><td>ادعاهای توکن</td></tr>
+                <tr><td><code>ExpiredSignatureError</code>، <code>InvalidTokenError</code></td><td>توکن منقضی یا نامعتبر، یعنی ۴۰۱</td></tr>
+                <tr><td><code>OAuth2PasswordBearer</code></td><td>خواندن هدر Bearer</td></tr>
+                <tr><td><code>get_current_user</code> و <code>CurrentUser</code></td><td>از توکن تا کاربر</td></tr>
+                <tr><td><code>require_roles(...)</code></td><td>کارخانه وابستگی نقش</td></tr>
+                <tr><td><code>can_manage_course(course, user)</code></td><td>قاعده مالکیت</td></tr>
+                <tr><td><code>Security(...)</code> و <code>SecurityScopes</code></td><td>مجوز با scope</td></tr>
+                <tr><td><code>JWT_SECRET_KEY</code> در <code>.env</code></td><td>کلید مخفی، هرگز در کد</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_jwt_encode_decode</code> ادعای <code>email</code> اضافه کنید. آیا باید آنجا باشد؟ <code>password_hash</code> چطور؟</li>
+            <li><code>ACCESS_TOKEN_EXPIRE_MINUTES=1</code> را در <code>.env</code> پروژه بگذارید، وارد شوید، صبر کنید و <code>/users/me</code> را صدا بزنید. بعد <code>JWT_SECRET_KEY</code> را عوض کنید. توکن‌های قبلی چه می‌شوند؟</li>
+            <li>در <code>04_role_dependency</code> نقش <code>support</code> بسازید که فهرست کاربران را بخواند ولی چیزی حذف نکند.</li>
+            <li>در <code>05_ownership_rules</code> تغییر نام دوره را فقط پیش از شروع دوره مجاز کنید. برای «دیر شده» چه کدی مناسب است؟</li>
+            <li>در <code>06_scopes</code> به عنوان مدیر فقط با <code>courses:read</code> وارد شوید و سعی کنید دوره بسازید.</li>
+            <li>در پروژه <code>PATCH /users/me</code> و <code>POST /users/me/password</code> را بنویسید.</li>
+            <li>با Bruno ثابت کنید کاربر غیرفعال با توکن قدیمی‌اش هم رد می‌شود و خط کدی که این کار را می‌کند پیدا کنید.</li>
+            <li><strong>تکلیف:</strong> کتابخانه را با JWT و نقش‌های <code>librarian</code> و <code>member</code> محافظت کنید: اعضا فقط برای خودشان امانت می‌گیرند و فقط امانت‌های خودشان را می‌بینند و کتابداران همه چیز را مدیریت می‌کنند. برای هر حالت ۴۰۳ یک درخواست Bruno بنویسید.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-09.html">فصل قبل: احراز هویت و امنیت رمز عبور</a>
+        <a href="chapter-11.html">فصل بعد: هدر، کوکی، فرم، فایل و CORS</a>
+    </div>
+
+</main>
+
+</body>
+</html>

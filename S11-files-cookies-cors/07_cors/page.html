@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>CORS test</title></head>
+<body>
+    <h1>Courses from another origin</h1>
+    <ul id="list"></ul>
+    <p id="error" style="color: crimson"></p>
+    <script>
+        fetch('http://127.0.0.1:8000/courses')
+            .then(response => response.json())
+            .then(courses => {
+                for (const course of courses) {
+                    const li = document.createElement('li');
+                    li.textContent = course.title;
+                    document.getElementById('list').append(li);
+                }
+            })
+            .catch(error => {
+                document.getElementById('error').textContent =
+                    'Blocked! Open the console (F12) to read the CORS error. ' + error;
+            });
+    </script>
+</body>
+</html>

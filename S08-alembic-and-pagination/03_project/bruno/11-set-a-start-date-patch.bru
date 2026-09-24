@@ -1,0 +1,27 @@
+meta {
+  name: Set a start date (PATCH)
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{baseUrl}}/courses/5
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "start_date": "2026-12-01"
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

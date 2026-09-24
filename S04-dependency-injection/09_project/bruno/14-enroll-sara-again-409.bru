@@ -1,0 +1,23 @@
+meta {
+  name: Enroll Sara again (409)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/courses/2/enrollments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "student_id": 2
+  }
+}
+
+tests {
+  test("status is 409", function() {
+    expect(res.status).to.equal(409);
+  });
+}

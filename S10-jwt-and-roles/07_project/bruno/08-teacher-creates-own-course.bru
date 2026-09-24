@@ -1,0 +1,37 @@
+meta {
+  name: Teacher creates own course
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+body:json {
+  {
+    "title": "Bruno Course",
+    "price": 1500000,
+    "capacity": 2,
+    "level": "intermediate"
+  }
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("courseId", res.body.id);
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+    expect(res.body.instructor_id).to.equal(2);
+  });
+}

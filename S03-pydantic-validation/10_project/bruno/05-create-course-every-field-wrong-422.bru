@@ -1,0 +1,28 @@
+meta {
+  name: Create course - every field wrong (422)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "ab",
+    "price": -1,
+    "capacity": 0,
+    "level": "expert",
+    "instructor_id": 1
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+    expect(res.body.detail.length).to.equal(4);
+  });
+}

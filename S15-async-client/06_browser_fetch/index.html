@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Training Center - browser client</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+        input, button { padding: 6px 10px; margin: 4px 0; }
+        pre { background: #0e2a2c; color: #e6fffb; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <!--
+        The SAME REST API, consumed by a completely different client: a web page.
+        Serve this folder on port 5500 so its origin is allowed by CORS_ORIGINS:
+            python -m http.server 5500
+        then open http://localhost:5500
+    -->
+    <h1>Training Center API from the browser</h1>
+    <form id="login">
+        <input name="username" value="sara@example.com">
+        <input name="password" type="password" value="Password123">
+        <button>Login</button>
+    </form>
+    <button id="courses">List courses</button>
+    <button id="me">Who am I?</button>
+    <button id="mine">My enrollments</button>
+    <pre id="out">...</pre>
+
+    <script>
+        const API = 'http://127.0.0.1:8000';
+        let token = null;  // like the Python client: the token lives on the client
+        const out = document.getElementById('out');
+
+        async function call(path, options = {}) {
+            const headers = { ...(options.headers || {}) };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const response = await fetch(API + path, { ...options, headers });
+            const body = response.status === 204 ? null : await response.json();
+            out.textContent = `${response.status}\n` + JSON.stringify(body, null, 2);
+            return { response, body };
+        }
+
+        document.getElementById('login').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            // OAuth2 password flow: a FORM, exactly like Bruno and httpx (data=...)
+            const form = new URLSearchParams(new FormData(event.target));
+            const { response, body } = await call('/auth/token', { method: 'POST', body: form });
+            if (response.ok) token = body.access_token;
+        });
+        document.getElementById('courses').onclick = () => call('/courses?sort=price');
+        document.getElementById('me').onclick = () => call('/users/me');
+        document.getElementById('mine').onclick = () => call('/users/me/enrollments');
+    </script>
+</body>
+</html>

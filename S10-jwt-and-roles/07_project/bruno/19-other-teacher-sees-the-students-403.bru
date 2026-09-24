@@ -1,0 +1,21 @@
+meta {
+  name: Other teacher sees the students (403)
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{baseUrl}}/courses/{{courseId}}/students
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacher2Token}}
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

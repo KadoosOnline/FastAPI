@@ -1,0 +1,18 @@
+meta {
+  name: Only active students
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{baseUrl}}/courses/3/students?status=active
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.length).to.equal(1);
+  });
+}

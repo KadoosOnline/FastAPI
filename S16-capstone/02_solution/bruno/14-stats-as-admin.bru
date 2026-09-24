@@ -1,0 +1,22 @@
+meta {
+  name: Stats as admin
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/users/stats
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.top_courses[0].title).to.equal("FastAPI");
+  });
+}

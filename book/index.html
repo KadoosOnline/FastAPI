@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="کتاب آموزش توسعه بک‌اند با FastAPI در هفده فصل، بر پایه دوره شانزده جلسه‌ای مؤسسه کادوس، نوشته علیرضا م. احمدی">
+    <title>توسعه بک‌اند با FastAPI</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="cover">
+        <h1>توسعه بک‌اند با FastAPI</h1>
+        <p class="subtitle">از اولین endpoint تا یک API کامل، آزموده و امن، در شانزده جلسه</p>
+        <span class="author"><a href="https://lordarma.com" target="_blank">علیرضا م. احمدی</a></span>
+    </div>
+
+    <h2>درباره این کتاب</h2>
+    <p>این کتاب حاصل یک دوره شانزده جلسه‌ای توسعه بک‌اند با FastAPI است که در <a href="https://kadoosedu.ir" target="_blank">مؤسسه فنی و آموزشی کادوس</a> رشت برگزار می‌شود. دوره ادامه دوره «پایتون پیشرفته» است: فرض بر این است که خواننده کلاس، دکوراتور، مولد، مدیر زمینه، استثنا و <code>async</code> و <code>await</code> را می‌شناسد. هر فصل کتاب دقیقاً برابر با یک جلسه سه ساعته است، به‌علاوه یک فصل مقدماتی در ابتدا که پیش از جلسه اول باید خوانده شود.</p>
+    <p>هدف کتاب این نیست که فقط دستورهای FastAPI را یاد بدهد. هدف این است که خواننده در پایان بتواند یک بک‌اند واقعی بسازد و از آن دفاع کند: یک API با پایگاه داده، مهاجرت، احراز هویت، نقش‌ها، بارگذاری فایل، آزمون خودکار و یک کلاینت پایتونی. همه این‌ها در یک پروژه واحد اتفاق می‌افتد: <strong>API مدیریت آموزشگاه</strong>، که از فصل اول تا آخر قدم به قدم بزرگ می‌شود.</p>
+
+    <h2>ساختار هر فصل</h2>
+    <p>هر فصل از چهار قسمت تشکیل شده است:</p>
+    <ol>
+        <li><strong>مسئله:</strong> این جلسه چه مشکلی را حل می‌کند و چرا به آن نیاز داریم.</li>
+        <li><strong>مثال‌ها:</strong> کد واقعی و قابل اجرا از پوشه همان جلسه، با توضیح.</li>
+        <li><strong>پروژه:</strong> قدمی که در این جلسه به پروژه آموزشگاه اضافه می‌شود.</li>
+        <li><strong>جمع‌بندی و تمرین:</strong> جدول خلاصه و چند تمرین عملی.</li>
+    </ol>
+    <div class="tip">
+        <span class="box-title">پیشنهاد</span>
+        <p>کد مثال‌ها را فقط نخوانید. آنها را اجرا کنید، در Bruno درخواست بفرستید، عمداً درخواست اشتباه بفرستید و پیام خطا را بخوانید، بعد کد را تغییر دهید و دوباره امتحان کنید. هفتاد درصد زمان این دوره به همین کار می‌گذرد.</p>
+    </div>
+
+    <h2>چه چیزی لازم دارید</h2>
+    <ul>
+        <li>یک کامپیوتر با ویندوز، لینوکس یا مک.</li>
+        <li><strong>پایتون ۳٫۱۲</strong> یا بالاتر و ویرایشگر <strong>VS Code</strong>. نصب همه چیز در فصل صفر توضیح داده شده است.</li>
+        <li>برنامه رایگان <strong>Bruno</strong> برای فرستادن درخواست به API.</li>
+        <li>آشنایی با پایتون پیشرفته. هر جا مفهومی از آن دوره لازم باشد، کوتاه یادآوری می‌شود.</li>
+        <li>برای یک مثال از فصل پنجم و اجرای اختیاری پروژه روی PostgreSQL، برنامه Docker. بقیه کتاب با SQLite کار می‌کند.</li>
+    </ul>
+
+    <h2 id="toc">فهرست مطالب</h2>
+
+    <div class="toc-list">
+
+        <a class="toc-item eval" href="chapter-00.html">
+            <span class="num">۰</span>
+            <span>
+                <span class="t">مقدمه: آماده‌سازی محیط کار</span>
+                <span class="d">بک‌اند چیست، پایتون و محیط مجازی، VS Code، Bruno، SQLite و Docker، اجرای اولین سرور</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-01.html">
+            <span class="num">۱</span>
+            <span>
+                <span class="t">مرور پایتون پیشرفته، HTTP و REST</span>
+                <span class="d">راهنمای نوع، Annotated، جنریک، dataclass، دکوراتور، استثنای سفارشی، مدیر زمینه، async، HTTP و REST، Bruno</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-02.html">
+            <span class="num">۲</span>
+            <span>
+                <span class="t">قدم‌های اول FastAPI</span>
+                <span class="d">برنامه و سرور، پارامتر مسیر و پرس‌وجو، بدنه درخواست، کد وضعیت، PUT و PATCH و DELETE، روترها، Swagger</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-03.html">
+            <span class="num">۳</span>
+            <span>
+                <span class="t">Pydantic: اعتبارسنجی و طرح‌واره‌ها</span>
+                <span class="d">BaseModel، Field و Annotated، اجباری و اختیاری، مدل تودرتو، اعتبارسنج سفارشی، سریال‌سازی، مدل پاسخ، Create و Update و Read</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-04.html">
+            <span class="num">۴</span>
+            <span>
+                <span class="t">تزریق وابستگی، ساختار، خطاها و تنظیمات</span>
+                <span class="d">Depends و Annotated، کلاس و سرویس به عنوان وابستگی، وابستگی yield، هدر و کوکی، مدیریت خطا، pydantic-settings، ساختار پروژه</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-05.html">
+            <span class="num">۵</span>
+            <span>
+                <span class="t">SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</span>
+                <span class="d">پایگاه داده رابطه‌ای، engine و Session، DeclarativeBase و Mapped، درج و پرس‌وجو، قیدها و پیش‌فرض‌ها، PostgreSQL با Docker، نشست برای هر درخواست</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-06.html">
+            <span class="num">۶</span>
+            <span>
+                <span class="t">CRUD واقعی با SQLAlchemy 2</span>
+                <span class="d">select و where، scalar و scalars و execute، شمارش و گروه‌بندی، جست‌وجو، ویرایش و حذف، تراکنش، IntegrityError، چرخه عمر نشست</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-07.html">
+            <span class="num">۷</span>
+            <span>
+                <span class="t">رابطه‌ها و بارگذاری بهینه در SQLAlchemy</span>
+                <span class="d">کلید خارجی و relationship، یک‌به‌چند، چندبه‌چند با شیء واسط، مسئله N+1، selectinload و joinedload، cascade، تراکنش چندردیفی</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-08.html">
+            <span class="num">۸</span>
+            <span>
+                <span class="t">Alembic، صفحه‌بندی، فیلتر و مرتب‌سازی</span>
+                <span class="d">مهاجرت با Alembic، revision و upgrade و downgrade، صفحه‌بندی، جست‌وجو، فیلتر، مرتب‌سازی با فهرست سفید، Page جنریک</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-09.html">
+            <span class="num">۹</span>
+            <span>
+                <span class="t">احراز هویت و امنیت رمز عبور</span>
+                <span class="d">احراز هویت و مجوز، درهم‌سازی با Argon2، ثبت‌نام، فرم OAuth2، شناسایی کاربران، حمله زمانی، مهاجرت ستون رمز</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-10.html">
+            <span class="num">۱۰</span>
+            <span>
+                <span class="t">JWT، کاربر جاری و نقش‌ها</span>
+                <span class="d">ساختار JWT، امضا و جعل، انقضا، get_current_user، کارخانه require_roles، ۴۰۱ و ۴۰۳، قاعده مالکیت، OAuth2 scopes</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-11.html">
+            <span class="num">۱۱</span>
+            <span>
+                <span class="t">هدر، کوکی، فرم، فایل و CORS</span>
+                <span class="d">هدر و middleware، کوکی و پرچم‌هایش، فرم، UploadFile، بررسی نوع و بایت‌های جادویی و اندازه، فایل ایستا، CORS، انواع پاسخ</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-12.html">
+            <span class="num">۱۲</span>
+            <span>
+                <span class="t">FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan</span>
+                <span class="d">مسدودکننده در برابر ناهمگام، def و async def در FastAPI، gather در endpoint، AsyncSession، MissingGreenlet، lifespan، اشتباه‌های رایج</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-13.html">
+            <span class="num">۱۳</span>
+            <span>
+                <span class="t">آزمون خودکار API با pytest</span>
+                <span class="d">pytest، assert و parametrize و fixture، TestClient، dependency_overrides، آزمون ناهمگام، پایگاه داده آزمون، کارخانه‌ها، آزمون شکست</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-14.html">
+            <span class="num">۱۴</span>
+            <span>
+                <span class="t">ساختن یک کلاینت REST پایتونی با HTTPX</span>
+                <span class="d">کلاینت و سرور، requests و HTTPX، params و json و data، مهلت زمانی، خطای انتقال و خطای وضعیت، Bearer، کلاس کلاینت، MockTransport</span>
+            </span>
+        </a>
+
+        <a class="toc-item" href="chapter-15.html">
+            <span class="num">۱۵</span>
+            <span>
+                <span class="t">کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی</span>
+                <span class="d">AsyncClient، gather و Semaphore، تلاش دوباره با عقب‌نشینی نمایی، نگاشت خطا و event hook، API شخص ثالث، fetch در مرورگر، برنامه داشبورد</span>
+            </span>
+        </a>
+
+        <a class="toc-item eval" href="chapter-16.html">
+            <span class="num">۱۶</span>
+            <span>
+                <span class="t">پروژه پایانی: یکپارچه‌سازی، رفع باگ، بازنویسی و بازبینی کد</span>
+                <span class="d">پروژه ناقص، پیدا کردن و رفع باگ، تکمیل endpointها، بازنویسی با GROUP BY، آزمون و کلاینت، پرسش‌های بازبینی کد</span>
+            </span>
+        </a>
+
+    </div>
+
+    <div class="note">
+        <span class="box-title">درباره پوشه‌های تمرین</span>
+        <p>در انتهای هر فصل به پوشه‌ای از فایل‌های دوره ارجاع داده شده است، مانند <code>S07-sqlalchemy-relationships</code>. اگر مخزن را دانلود کرده‌اید، بعد از خواندن هر بخش، نمونه مربوط به آن را باز کنید، اجرایش کنید و کدش را تغییر دهید.</p>
+    </div>
+
+    <div class="pager">
+        <span class="disabled"></span>
+        <a href="chapter-00.html">شروع کتاب: فصل صفر</a>
+    </div>
+
+</main>
+
+</body>
+</html>

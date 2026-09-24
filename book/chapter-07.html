@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل هفت: رابطه‌ها و بارگذاری بهینه در SQLAlchemy. کلید خارجی و relationship، یک‌به‌چند، چندبه‌چند با شیء واسط، مسئله N+1، selectinload و joinedload، cascade، تراکنش چندردیفی">
+    <title>فصل ۷: رابطه‌ها و بارگذاری بهینه در SQLAlchemy</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۷</span>
+        <h1>رابطه‌ها و بارگذاری بهینه در SQLAlchemy</h1>
+        <p class="lead">جدول‌ها را در پایتون همان‌طور به هم وصل می‌کنیم که در پایگاه داده وصل‌اند. یک مدرس چند دوره دارد؛ دانشجو و دوره از راه ثبت‌نام به هم می‌رسند و این پیوند داده خودش را دارد. relationship و back_populates، الگوی شیء واسط و cascade را یاد می‌گیریم و مهم‌تر از همه، اینکه چطور SQL واقعی را ببینیم و از مسئله N+1 با selectinload و joinedload دوری کنیم.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">کلید خارجی و رابطه</a></li>
+            <li><a href="#s2">یک‌به‌چند: مدرس و دوره‌هایش</a></li>
+            <li><a href="#s3">چندبه‌چند با شیء واسط</a></li>
+            <li><a href="#s4">مسئله N+1: ببینید، بعد درست کنید</a></li>
+            <li><a href="#s5">cascade: وقتی والد تغییر می‌کند</a></li>
+            <li><a href="#s6">یک تراکنش، چند ردیف</a></li>
+            <li><a href="#s7">پروژه: ثبت‌نام با رابطه‌ها</a></li>
+            <li><a href="#s8">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. کلید خارجی و رابطه</h2>
+    <p>کلید خارجی، مثل <code>Course.instructor_id</code>، چیزی است که <strong>پایگاه داده</strong> ذخیره می‌کند. رابطه، مثل <code>course.instructor</code>، چیزی است که <strong>پایتون</strong> می‌بیند: صفتی که کلید خارجی را دنبال می‌کند و شیء مرتبط را برمی‌گرداند.</p>
+    <pre class="out">User 1 ──&lt; Course                      instructor -&gt; courses_taught
+User 1 ──&lt; Enrollment &gt;── 1 Course     many-to-many with data on the link</pre>
+    <pre class="code"><code>class User(Base):
+    __tablename__ = &#x27;users&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(120))
+    role: Mapped[str] = mapped_column(String(20), default=&#x27;student&#x27;)
+
+    courses_taught: Mapped[list[&#x27;Course&#x27;]] = relationship(back_populates=&#x27;instructor&#x27;)
+    enrollments: Mapped[list[&#x27;Enrollment&#x27;]] = relationship(
+        back_populates=&#x27;student&#x27;, cascade=&#x27;all, delete-orphan&#x27;
+    )
+
+    def __repr__(self) -&gt; str:
+        return f&#x27;User({self.full_name!r})&#x27;
+
+
+class Course(Base):
+    __tablename__ = &#x27;courses&#x27;
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    capacity: Mapped[int] = mapped_column(default=20)
+    instructor_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;))
+
+    instructor: Mapped[&#x27;User&#x27;] = relationship(back_populates=&#x27;courses_taught&#x27;)
+    enrollments: Mapped[list[&#x27;Enrollment&#x27;]] = relationship(
+        back_populates=&#x27;course&#x27;, cascade=&#x27;all, delete-orphan&#x27;
+    )
+    # A read-only shortcut THROUGH the enrollments table:
+    students: Mapped[list[&#x27;User&#x27;]] = relationship(secondary=&#x27;enrollments&#x27;, viewonly=True)
+
+    def __repr__(self) -&gt; str:
+        return f&#x27;Course({self.title!r})&#x27;
+
+
+class Enrollment(Base):
+    __tablename__ = &#x27;enrollments&#x27;
+    __table_args__ = (UniqueConstraint(&#x27;student_id&#x27;, &#x27;course_id&#x27;),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey(&#x27;users.id&#x27;, ondelete=&#x27;CASCADE&#x27;))
+    course_id: Mapped[int] = mapped_column(ForeignKey(&#x27;courses.id&#x27;, ondelete=&#x27;CASCADE&#x27;))
+    status: Mapped[str] = mapped_column(String(20), default=&#x27;active&#x27;)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+
+    student: Mapped[&#x27;User&#x27;] = relationship(back_populates=&#x27;enrollments&#x27;)
+    course: Mapped[&#x27;Course&#x27;] = relationship(back_populates=&#x27;enrollments&#x27;)
+
+    def __repr__(self) -&gt; str:
+        return f&#x27;Enrollment({self.student.full_name} -&gt; {self.course.title}, {self.status})&#x27;</code></pre>
+    <p class="code-caption">مدل‌ها با رابطه: <bdi dir="ltr">01_relationships/models.py</bdi></p>
+    <ul>
+        <li><code>back_populates</code> دو سمت را به هم وصل می‌کند: یک سمت را تنظیم کنید، سمت دیگر خودش به‌روز می‌شود.</li>
+        <li><code>Mapped[list[&#x27;Course&#x27;]]</code> نوعی است که ویرایشگر می‌فهمد. نام کلاس در رشته آمده، چون هنوز تعریف نشده است.</li>
+        <li><code>students</code> با <code>secondary=&#x27;enrollments&#x27;</code> و <code>viewonly=True</code> یک میان‌بر فقط‌خواندنی از روی جدول ثبت‌نام است.</li>
+    </ul>
+
+    <h2 id="s2">۲. یک‌به‌چند: مدرس و دوره‌هایش</h2>
+    <pre class="code"><code>def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        ali = session.scalar(select(User).where(User.full_name == &#x27;Ali Teacher&#x27;))
+        assert ali is not None
+        print(ali, &#x27;teaches&#x27;, ali.courses_taught)
+
+        course = session.get(Course, 3)
+        assert course is not None
+        print(course, &#x27;is taught by&#x27;, course.instructor)
+
+        docker = Course(title=&#x27;Docker&#x27;, instructor=ali)
+        print(&#x27;before flush, instructor_id =&#x27;, docker.instructor_id)
+        print(&#x27;already in the list?&#x27;, docker in ali.courses_taught)
+        session.add(docker)
+        session.flush()
+        print(&#x27;after flush, instructor_id  =&#x27;, docker.instructor_id)
+
+        # Move a course to another teacher by changing the relationship
+        mina = course.instructor
+        docker.instructor = mina
+        session.commit()
+        print(&#x27;Mina now teaches&#x27;, mina.courses_taught)</code></pre>
+    <p class="code-caption">کار با رابطه از هر دو سمت: <bdi dir="ltr">01_one_to_many.py</bdi></p>
+    <pre class="out">User(&#x27;Ali Teacher&#x27;) teaches [Course(&#x27;Python&#x27;), Course(&#x27;FastAPI&#x27;)]
+before flush, instructor_id = None
+already in the list? True
+after flush, instructor_id  = 1</pre>
+    <p><code>Course(title=..., instructor=ali)</code> هنگام flush مقدار <code>instructor_id</code> را خودش پر می‌کند و به لطف <code>back_populates</code> دوره تازه همان لحظه در <code>ali.courses_taught</code> هست.</p>
+
+    <h2 id="s3">۳. چندبه‌چند با شیء واسط</h2>
+    <p>یک دانشجو چند دوره می‌گیرد و یک دوره چند دانشجو دارد. جدول پیوند یعنی <code>enrollments</code> یک مدل کامل (<code>Enrollment</code>) است، چون خود پیوند داده دارد: وضعیت و تاریخ.</p>
+    <pre class="code"><code>def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        leila = session.scalar(select(User).where(User.full_name == &#x27;Leila&#x27;))
+        assert leila is not None
+        print(&#x27;Leila takes:&#x27;, [e.course.title for e in leila.enrollments])
+
+        fastapi = session.scalar(select(Course).where(Course.title == &#x27;FastAPI&#x27;))
+        assert fastapi is not None
+        print(&#x27;FastAPI students:&#x27;, fastapi.students)
+
+        # Cancel one enrollment (data on the link!)
+        link = next(e for e in fastapi.enrollments if e.student is leila)
+        link.status = &#x27;cancelled&#x27;
+        session.commit()
+
+        active_students = session.scalars(
+            select(User)
+            .join(Enrollment, Enrollment.student_id == User.id)
+            .where(Enrollment.course_id == fastapi.id, Enrollment.status == &#x27;active&#x27;)
+            .order_by(User.full_name)
+        ).all()
+        print(&#x27;active in FastAPI:&#x27;, active_students)
+
+        # Enroll a new student through the relationship
+        omid = User(full_name=&#x27;Omid&#x27;)
+        omid.enrollments.append(Enrollment(course=fastapi))
+        session.add(omid)
+        session.commit()
+        print(&#x27;after Omid:&#x27;, fastapi.students)</code></pre>
+    <p class="code-caption">ثبت‌نام، لغو و فهرست دانشجویان فعال: <bdi dir="ltr">02_many_to_many.py</bdi></p>
+
+    <h2 id="s4">۴. مسئله N+1: ببینید، بعد درست کنید</h2>
+    <p>بارگذاری تنبل راحت است: <code>course.enrollments</code> اولین باری که به آن دست بزنید یک SELECT اجرا می‌کند. در حلقه روی N دوره این یعنی یک پرس‌وجو برای فهرست و N پرس‌وجو برای ثبت‌نام‌ها: <strong>N+1</strong>. با هزار دوره، هزار و یک رفت‌وبرگشت.</p>
+    <pre class="code"><code>@event.listens_for(engine, &#x27;before_cursor_execute&#x27;)
+def count_query(conn, cursor, statement, parameters, context, executemany) -&gt; None:  # type: ignore[no-untyped-def]
+    queries.append(statement)
+
+
+def run(label: str, options: list, describe: Callable[[Course], str]) -&gt; None:  # type: ignore[type-arg]
+    queries.clear()
+    with Session(engine) as session:
+        courses = session.scalars(select(Course).options(*options)).all()
+        lines = [describe(course) for course in courses]
+    print(f&#x27;{label:&lt;34} {len(queries)} queries   {lines[:2]} ...&#x27;)
+
+
+def main() -&gt; None:
+    reset_database()
+    teacher = lambda c: f&#x27;{c.title} by {c.instructor.full_name}&#x27;  # noqa: E731
+    size = lambda c: f&#x27;{c.title}: {len(c.enrollments)} students&#x27;  # noqa: E731
+
+    run(&#x27;instructor, lazy&#x27;, [], teacher)
+    run(&#x27;instructor, joinedload&#x27;, [joinedload(Course.instructor)], teacher)
+    run(&#x27;enrollments, lazy (N+1)&#x27;, [], size)
+    run(&#x27;enrollments, selectinload&#x27;, [selectinload(Course.enrollments)], size)
+
+    # Two levels deep: every student -&gt; enrollments -&gt; course
+    queries.clear()
+    with Session(engine) as session:
+        stmt = (
+            select(User)
+            .where(User.role == &#x27;student&#x27;)
+            .options(selectinload(User.enrollments).selectinload(Enrollment.course))
+        )
+        for student in session.scalars(stmt):
+            _ = [e.course.title for e in student.enrollments]
+    print(f&#x27;{&quot;students -&gt; courses, nested&quot;:&lt;34} {len(queries)} queries:&#x27;)
+    for sql in queries:
+        print(&#x27;   &#x27;, &#x27; &#x27;.join(sql.split())[:90])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">شمردن پرس‌وجوها با رویداد موتور: <bdi dir="ltr">03_n_plus_1.py</bdi></p>
+    <pre class="out">instructor, lazy                   3 queries   [&#x27;Python by Ali Teacher&#x27;, &#x27;FastAPI by Ali Teacher&#x27;] ...
+instructor, joinedload             1 queries   [&#x27;Python by Ali Teacher&#x27;, &#x27;FastAPI by Ali Teacher&#x27;] ...
+enrollments, lazy (N+1)            5 queries   [&#x27;Python: 4 students&#x27;, &#x27;FastAPI: 3 students&#x27;] ...
+enrollments, selectinload          2 queries   [&#x27;Python: 4 students&#x27;, &#x27;FastAPI: 3 students&#x27;] ...
+students -&gt; courses, nested        3 queries:</pre>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>روش</th><th>چه می‌کند</th><th>مناسب برای</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>بارگذاری تنبل (پیش‌فرض)</td><td>یک SELECT برای هر دسترسی</td><td>فقط وقتی تعداد کم است</td></tr>
+                <tr><td><code>selectinload(...)</code></td><td>یک پرس‌وجوی اضافه با <code>WHERE id IN (...)</code></td><td>مجموعه‌ها (یک‌به‌چند)</td></tr>
+                <tr><td><code>joinedload(...)</code></td><td>همان پرس‌وجو با JOIN</td><td>یک‌به‌یک و چندبه‌یک</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="note">
+        <span class="box-title">چرا نسخه تنبل مدرس فقط ۳ پرس‌وجو داشت؟</span>
+        <p>چهار دوره فقط دو مدرس دارند و <strong>نقشه هویت</strong> نشست هر مدرس را بعد از اولین بارگذاری به خاطر می‌سپارد. با مدرس‌های متفاوت زیاد، دوباره N+1 می‌شود.</p>
+    </div>
+
+    <h2 id="s5">۵. cascade: وقتی والد تغییر می‌کند</h2>
+    <p><code>cascade=&#x27;all, delete-orphan&#x27;</code> روی <code>Course.enrollments</code> یعنی حذف دوره ثبت‌نام‌هایش را هم حذف می‌کند و بیرون آوردن یک ثبت‌نام از فهرست، آن ردیف را حذف می‌کند. روی <code>courses_taught</code> مدرس هیچ cascadeی نیست، و این عمدی است:</p>
+    <pre class="out">enrollments: 10
+after removing one from the list: 9
+after deleting the course: 6
+refused: NOT NULL constraint failed: courses.instructor_id</pre>
+    <p>وقتی مدرسی که هنوز دوره دارد حذف می‌شود، SQLAlchemy سعی می‌کند <code>instructor_id</code> دوره‌هایش را <code>NULL</code> کند و ستون <code>NOT NULL</code> جلویش را می‌گیرد. مدرسِ دارای دوره نمی‌تواند ناپدید شود.</p>
+
+    <h2 id="s6">۶. یک تراکنش، چند ردیف</h2>
+    <p>«این سه دوره را بگیر» باید یا کامل انجام شود یا اصلاً انجام نشود. اگر دوره سوم پر باشد، دو ثبت‌نام اول نباید باقی بمانند:</p>
+    <pre class="code"><code>def enroll_in_many(student_id: int, course_ids: list[int]) -&gt; None:
+    with Session(engine) as session, session.begin():
+        student = session.get(User, student_id)
+        assert student is not None
+        for course_id in course_ids:
+            course = session.get(Course, course_id)
+            assert course is not None
+            taken = session.scalar(
+                select(func.count()).where(
+                    Enrollment.course_id == course_id, Enrollment.status == &#x27;active&#x27;
+                )
+            )
+            if (taken or 0) &gt;= course.capacity:
+                raise CourseFullError(f&#x27;{course.title} is full&#x27;)
+            session.add(Enrollment(student=student, course=course))
+            session.flush()  # send it now, so the next count sees it</code></pre>
+    <p class="code-caption">همه یا هیچ: <bdi dir="ltr">05_multi_record_transaction.py</bdi></p>
+    <p><code>flush()</code> درون حلقه ثبت‌نام تازه را به پایگاه داده می‌فرستد تا شمارش بعدی آن را ببیند، بدون اینکه تراکنش تمام شود.</p>
+
+    <h2 id="s7">۷. پروژه: ثبت‌نام با رابطه‌ها</h2>
+    <pre class="code"><code>    def detail(self, course_id: int) -&gt; CourseDetail:
+        &quot;&quot;&quot;The course AND its instructor in one query (joinedload), plus a count.&quot;&quot;&quot;
+        stmt = select(Course).options(joinedload(Course.instructor)).where(Course.id == course_id)
+        course = self.db.scalar(stmt)
+        if course is None:
+            raise NotFoundError(f&#x27;Course {course_id} not found&#x27;)
+        active = EnrollmentService(self.db).active_count(course_id)
+        return CourseDetail(
+            **CourseRead.model_validate(course).model_dump(),
+            instructor=InstructorSummary.model_validate(course.instructor),
+            active_students=active,
+        )</code></pre>
+    <p class="code-caption">دوره و مدرسش در یک پرس‌وجو: <bdi dir="ltr">02_project/app/services.py</bdi></p>
+    <pre class="code"><code>    def for_student(self, student_id: int) -&gt; list[Enrollment]:
+        &quot;&quot;&quot;Enrollments with their course: 2 queries in total, not 1 + N.&quot;&quot;&quot;
+        UserService(self.db).get(student_id)
+        stmt = (
+            select(Enrollment)
+            .options(selectinload(Enrollment.course))
+            .where(Enrollment.student_id == student_id)
+            .order_by(Enrollment.id)
+        )
+        return list(self.db.scalars(stmt))
+
+    def students_of(self, course_id: int, status: str | None = None) -&gt; list[CourseStudent]:
+        &quot;&quot;&quot;One query with a JOIN, returning (enrollment, user) pairs.&quot;&quot;&quot;
+        CourseService(self.db).get(course_id)
+        stmt = (
+            select(Enrollment, User)
+            .join(Enrollment.student)
+            .where(Enrollment.course_id == course_id)
+            .order_by(User.full_name)
+        )
+        if status:
+            stmt = stmt.where(Enrollment.status == status)
+        return [
+            CourseStudent(
+                student_id=user.id,
+                full_name=user.full_name,
+                email=user.email,
+                status=enrollment.status,
+                enrolled_at=enrollment.created_at,
+            )
+            for enrollment, user in self.db.execute(stmt).tuples()
+        ]</code></pre>
+    <p class="code-caption">دوره‌های یک دانشجو و دانشجویان یک دوره: <bdi dir="ltr">02_project/app/services.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>endpoint</th><th>تکنیک</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>GET /courses/{id}</code></td><td>دوره و مدرس با <code>joinedload</code> و تعداد دانشجویان فعال</td></tr>
+                <tr><td><code>GET /courses/{id}/students</code></td><td>یک پرس‌وجوی JOIN که جفت (ثبت‌نام، کاربر) برمی‌گرداند</td></tr>
+                <tr><td><code>GET /users/{id}/enrollments</code></td><td><code>selectinload</code>: دو پرس‌وجو، نه ۱+N</td></tr>
+                <tr><td><code>POST /users/{id}/enrollments</code></td><td>ثبت‌نام در چند دوره، همه یا هیچ</td></tr>
+                <tr><td><code>GET /users/{id}/courses-taught</code></td><td>دوره‌های یک مدرس از راه رابطه</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>در <code>.env</code> پروژه <code>DATABASE_ECHO=true</code> بگذارید، <code>GET /users/4/enrollments</code> را از Bruno بفرستید و SELECTها را بشمارید. بعد <code>selectinload</code> را حذف کنید و دوباره بشمارید.</p>
+    </div>
+    <div class="warn">
+        <span class="box-title">باگی که ارزش به خاطر سپردن دارد</span>
+        <p>هنگام نوشتن این پروژه، یک کلاس سرویس متدی به نام <code>list</code> داشت و پایین‌تر حاشیه‌نویسی <code>-&gt; list[Course]</code>. درون بدنه کلاس، نام <code>list</code> حالا به <strong>آن متد</strong> اشاره می‌کرد و پایتون با <code>TypeError: &#x27;function&#x27; object is not subscriptable</code> متوقف شد. متدها حالا <code>list_courses</code> و <code>list_users</code> نام دارند. هرگز نامی از توابع داخلی پایتون را دوباره استفاده نکنید.</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S07-sqlalchemy-relationships</code> دو پوشه دارد. اسکریپت‌ها با <code>python 03_n_plus_1.py</code> و مانند آن اجرا می‌شوند. پروژه: <code>python seed.py</code> و بعد <code>python main.py</code>.</p>
+    </div>
+
+    <h2 id="s8">۸. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>ForeignKey(&#x27;users.id&#x27;)</code></td><td>پیوند در پایگاه داده</td></tr>
+                <tr><td><code>relationship(back_populates=...)</code></td><td>پیوند در پایتون، از دو سمت</td></tr>
+                <tr><td>مدل واسط (<code>Enrollment</code>)</td><td>چندبه‌چند با داده روی پیوند</td></tr>
+                <tr><td><code>secondary=..., viewonly=True</code></td><td>میان‌بر فقط‌خواندنی</td></tr>
+                <tr><td><code>select(A, B).join(...)</code> و <code>.tuples()</code></td><td>چند مدل در یک پرس‌وجو</td></tr>
+                <tr><td><code>selectinload</code>، <code>joinedload</code></td><td>جلوگیری از N+1</td></tr>
+                <tr><td>رویداد <code>before_cursor_execute</code></td><td>شمردن پرس‌وجوها</td></tr>
+                <tr><td><code>cascade=&#x27;all, delete-orphan&#x27;</code></td><td>سرنوشت فرزندان</td></tr>
+                <tr><td><code>flush()</code> درون تراکنش</td><td>دیده شدن تغییرات پیش از commit</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_one_to_many.py</code> همه دوره‌های علی را فقط با صفت‌های رابطه به مینا منتقل کنید.</li>
+            <li>مدل <code>Room</code> و رابطه یک‌به‌چند <code>Room.courses</code> با <code>Course.room</code> بسازید.</li>
+            <li>به <code>Enrollment</code> ستون <code>grade</code> اضافه کنید و میانگین نمره دانشجویان فعال هر دوره را با یک پرس‌وجو بگیرید.</li>
+            <li>در <code>03_n_plus_1.py</code> تعداد دوره‌ها را به چهل برسانید. نسخه تنبل حالا چند پرس‌وجو دارد؟</li>
+            <li>چرا <code>joinedload</code> روی یک مجموعه به <code>.unique()</code> نیاز دارد؟ امتحان کنید و خطا را بخوانید.</li>
+            <li>در پروژه <code>GET /courses?with_instructor=true</code> را طوری بنویسید که با هر تعداد دوره حداکثر دو پرس‌وجو اجرا شود.</li>
+            <li><code>GET /users/{id}/classmates</code> را بنویسید: دانشجویان فعالی که دست‌کم در یک دوره با این دانشجو هم‌کلاس‌اند.</li>
+            <li><code>POST /courses/{id}/complete/{student_id}</code> بنویسید که وضعیت را <code>completed</code> کند؛ دانشجوی تمام‌کرده دیگر نمی‌تواند لغو کند.</li>
+            <li><strong>تکلیف:</strong> رابطه‌های <code>Author ──&lt; Book</code> و <code>Member ──&lt; Loan &gt;── Book</code> را به کتابخانه اضافه کنید و نشان دهید فهرست امانت‌های یک عضو با کتاب‌هایش N+1 ندارد.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-06.html">فصل قبل: CRUD واقعی با SQLAlchemy 2</a>
+        <a href="chapter-08.html">فصل بعد: Alembic، صفحه‌بندی، فیلتر و مرتب‌سازی</a>
+    </div>
+
+</main>
+
+</body>
+</html>

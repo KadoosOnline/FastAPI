@@ -1,0 +1,27 @@
+meta {
+  name: Patch course with key
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{baseUrl}}/courses/1
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "price": 2600000
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

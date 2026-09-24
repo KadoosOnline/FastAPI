@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل سه: Pydantic: اعتبارسنجی و طرح‌واره‌ها. BaseModel، Field و Annotated، اجباری و اختیاری، مدل تودرتو، اعتبارسنج سفارشی، سریال‌سازی، مدل پاسخ، Create و Update و Read">
+    <title>فصل ۳: Pydantic: اعتبارسنجی و طرح‌واره‌ها</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۳</span>
+        <h1>Pydantic: اعتبارسنجی و طرح‌واره‌ها</h1>
+        <p class="lead">دیگر به کلاینت اعتماد نمی‌کنیم. هر داده‌ای که وارد API می‌شود یا از آن خارج می‌شود را با یک مدل Pydantic توصیف می‌کنیم: چه فیلدهایی هست، کدام اجباری است، چه مقدارهایی مجاز است و کلاینت اجازه دیدن چه چیزی را دارد. تفاوت داده‌ای که ذخیره می‌کنیم، داده‌ای که می‌پذیریم و داده‌ای که برمی‌گردانیم را یاد می‌گیریم: الگوی Create و Update و Read که بقیه دوره روی آن بنا می‌شود.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">BaseModel: dataclassی که بررسی می‌کند</a></li>
+            <li><a href="#s2">Field و Annotated: قاعده برای هر فیلد</a></li>
+            <li><a href="#s3">اجباری، پیش‌فرض، اختیاری</a></li>
+            <li><a href="#s4">مدل‌های تودرتو</a></li>
+            <li><a href="#s5">اعتبارسنج سفارشی</a></li>
+            <li><a href="#s6">سریال‌سازی و from_attributes</a></li>
+            <li><a href="#s7">پیش‌بینی کنید: چرا قبول شد، چرا رد شد؟</a></li>
+            <li><a href="#s8">مدل پاسخ: کنترل آنچه از API خارج می‌شود</a></li>
+            <li><a href="#s9">یک منبع، سه طرح‌واره</a></li>
+            <li><a href="#s10">پروژه: API آموزشگاه، نسخه دو</a></li>
+            <li><a href="#s11">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. BaseModel: dataclassی که بررسی می‌کند</h2>
+    <p>در فصل اول dataclassها به هر چیزی که می‌گرفتند اعتماد می‌کردند. داده‌ای که از اینترنت می‌رسد قابل اعتماد نیست. یک مدل Pydantic:</p>
+    <ul>
+        <li>وقتی امن است <strong>تبدیل</strong> می‌کند: <code>&quot;42&quot;</code> به <code>42</code> و <code>&quot;yes&quot;</code> به <code>True</code>.</li>
+        <li>وقتی امن نیست <strong>رد</strong> می‌کند: <code>&quot;abc&quot;</code> برای یک عدد صحیح یعنی <code>ValidationError</code>.</li>
+        <li><strong>همه</strong> مشکل‌ها را یکجا گزارش می‌کند، با نام فیلد (<code>loc</code>).</li>
+    </ul>
+    <pre class="code"><code>from pydantic import BaseModel, ValidationError
+
+
+class Course(BaseModel):
+    id: int
+    title: str
+    price: int
+    is_active: bool = True
+
+
+def main() -&gt; None:
+    course = Course(id=&#x27;7&#x27;, title=&#x27;FastAPI&#x27;, price=4_800_000, is_active=&#x27;yes&#x27;)
+    print(course)  # &#x27;7&#x27; became 7, &#x27;yes&#x27; became True
+    print(course.id + 1)
+
+    data_from_json = {&#x27;id&#x27;: 8, &#x27;title&#x27;: &#x27;SQL&#x27;, &#x27;price&#x27;: 2_900_000}
+    print(Course.model_validate(data_from_json))
+    print(Course.model_validate_json(&#x27;{&quot;id&quot;: 9, &quot;title&quot;: &quot;Docker&quot;, &quot;price&quot;: 3000000}&#x27;))
+
+    try:
+        Course(id=&#x27;abc&#x27;, title=None, price=1.5)
+    except ValidationError as error:
+        print(f&#x27;{error.error_count()} errors:&#x27;)
+        for item in error.errors():
+            print(&#x27;  &#x27;, item[&#x27;loc&#x27;], &#x27;-&gt;&#x27;, item[&#x27;msg&#x27;])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">تبدیل و خطا: نمونه <bdi dir="ltr">01_basemodel/app.py</bdi></p>
+    <pre class="out">id=7 title=&#x27;FastAPI&#x27; price=4800000 is_active=True
+3 errors:
+   (&#x27;id&#x27;,) -&gt; Input should be a valid integer, unable to parse string as an integer
+   (&#x27;title&#x27;,) -&gt; Input should be a valid string
+   (&#x27;price&#x27;,) -&gt; Input should be a valid integer, got a number with a fractional part</pre>
+    <p>همین فهرست خطاها، وقتی درون FastAPI رخ دهد، به شکل پاسخ ۴۲۲ به کلاینت می‌رسد.</p>
+
+    <h2 id="s2">۲. Field و Annotated: قاعده برای هر فیلد</h2>
+    <pre class="code"><code>from typing import Annotated
+
+from pydantic import BaseModel, Field, ValidationError
+
+Price = Annotated[int, Field(ge=0, le=1_000_000_000, description=&#x27;Price in Toman&#x27;)]
+Title = Annotated[str, Field(min_length=3, max_length=200)]
+
+
+class Course(BaseModel):
+    title: Title
+    code: str = Field(pattern=r&#x27;^[A-Z]{3}-\d{3}$&#x27;, examples=[&#x27;FST-101&#x27;])
+    price: Price
+    capacity: int = Field(gt=0, le=500)
+
+
+def main() -&gt; None:
+    print(Course(title=&#x27;FastAPI&#x27;, code=&#x27;FST-101&#x27;, price=4_800_000, capacity=12))
+
+    bad_courses = [
+        {&#x27;title&#x27;: &#x27;AI&#x27;, &#x27;code&#x27;: &#x27;FST-101&#x27;, &#x27;price&#x27;: 1, &#x27;capacity&#x27;: 1},
+        {&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;code&#x27;: &#x27;fst101&#x27;, &#x27;price&#x27;: 1, &#x27;capacity&#x27;: 1},
+        {&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;code&#x27;: &#x27;FST-101&#x27;, &#x27;price&#x27;: -5, &#x27;capacity&#x27;: 0},
+    ]
+    for data in bad_courses:
+        try:
+            Course(**data)
+        except ValidationError as error:
+            print([f&#x27;{e[&quot;loc&quot;][0]}: {e[&quot;msg&quot;]}&#x27; for e in error.errors()])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">قاعده‌های فیلد و نوع‌های قابل استفاده دوباره: نمونه <bdi dir="ltr">02_field_constraints/app.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>قاعده</th><th>معنی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>min_length</code>، <code>max_length</code></td><td>طول رشته</td></tr>
+                <tr><td><code>ge</code>، <code>gt</code></td><td>بزرگ‌تر یا مساوی، بزرگ‌تر</td></tr>
+                <tr><td><code>le</code>، <code>lt</code></td><td>کوچک‌تر یا مساوی، کوچک‌تر</td></tr>
+                <tr><td><code>pattern</code></td><td>عبارت باقاعده</td></tr>
+                <tr><td><code>description</code>، <code>examples</code></td><td>فقط برای مستند <code>/docs</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>با <code>Annotated</code> که در فصل اول دیدیم، قاعده <strong>یک بار</strong> تعریف و همه‌جا استفاده می‌شود: <code>Price = Annotated[int, Field(ge=0)]</code>.</p>
+
+    <h2 id="s3">۳. اجباری، پیش‌فرض، اختیاری</h2>
+    <pre class="code"><code>from pydantic import BaseModel, ValidationError
+
+
+class CourseForm(BaseModel):
+    title: str
+    level: str = &#x27;beginner&#x27;
+    description: str | None = None
+    teacher_note: str | None  # required, but may be null!
+
+
+def main() -&gt; None:
+    form = CourseForm(title=&#x27;FastAPI&#x27;, teacher_note=None)
+    print(form)
+    print(&#x27;sent by the client:&#x27;, form.model_fields_set)
+
+    try:
+        CourseForm(title=&#x27;FastAPI&#x27;)
+    except ValidationError as error:
+        print(error.errors()[0][&#x27;loc&#x27;], error.errors()[0][&#x27;msg&#x27;])
+
+    patch = CourseForm(title=&#x27;FastAPI&#x27;, teacher_note=None, description=None)
+    print(patch.model_dump(exclude_unset=True))  # only what was sent
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">سه حالت متفاوت: نمونه <bdi dir="ltr">03_optional_and_defaults/app.py</bdi></p>
+    <div class="warn">
+        <span class="box-title">دام رایج</span>
+        <p><code>str | None</code> <strong>بدون</strong> مقدار پیش‌فرض هنوز اجباری است: کلاینت باید کلید را بفرستد، حتی اگر مقدارش <code>null</code> باشد. برای اختیاری شدن، <code>= None</code> لازم است.</p>
+    </div>
+    <p><code>model_fields_set</code> می‌گوید کلاینت واقعاً کدام فیلدها را فرستاده است. PATCH به همین طریق «فرستاده نشده» را از «با null فرستاده شده» جدا می‌کند.</p>
+
+    <h2 id="s4">۴. مدل‌های تودرتو</h2>
+    <p>JSON درخت است و مدل‌های Pydantic هم می‌توانند درخت باشند. هر سطح بررسی می‌شود و محل خطا کل مسیر را نشان می‌دهد:</p>
+    <pre class="code"><code>class Instructor(BaseModel):
+    id: int
+    full_name: str
+
+
+class ClassSession(BaseModel):
+    number: int = Field(ge=1, le=16)
+    topic: str
+
+
+class Course(BaseModel):
+    title: str
+    instructor: Instructor
+    tags: list[str] = []
+    sessions: list[ClassSession] = []</code></pre>
+    <p class="code-caption">مدل درون مدل: نمونه <bdi dir="ltr">04_nested_models/app.py</bdi></p>
+    <pre class="out">(&#x27;instructor&#x27;, &#x27;full_name&#x27;) Field required
+(&#x27;sessions&#x27;, 1, &#x27;number&#x27;) Input should be less than or equal to 16</pre>
+
+    <h2 id="s5">۵. اعتبارسنج سفارشی</h2>
+    <p>قاعده‌هایی که <code>Field</code> نمی‌تواند بیان کند در یک تابع می‌آیند:</p>
+    <pre class="code"><code>from typing import Self
+
+from pydantic import BaseModel, EmailStr, ValidationError, field_validator, model_validator
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+    password: str
+
+    @field_validator(&#x27;full_name&#x27;)
+    @classmethod
+    def clean_name(cls, value: str) -&gt; str:
+        value = &#x27; &#x27;.join(value.split())  # &#x27;  sara   ahmadi &#x27; -&gt; &#x27;sara ahmadi&#x27;
+        if len(value) &lt; 2:
+            raise ValueError(&#x27;name is too short&#x27;)
+        return value.title()
+
+    @field_validator(&#x27;password&#x27;)
+    @classmethod
+    def strong_password(cls, value: str) -&gt; str:
+        if len(value) &lt; 8 or value.isalpha() or value.isdigit():
+            raise ValueError(&#x27;at least 8 characters, with letters AND digits&#x27;)
+        return value
+
+
+class PriceRange(BaseModel):
+    min_price: int = 0
+    max_price: int = 1_000_000_000
+
+    @model_validator(mode=&#x27;after&#x27;)
+    def check_order(self) -&gt; Self:
+        if self.min_price &gt; self.max_price:
+            raise ValueError(&#x27;min_price cannot be greater than max_price&#x27;)
+        return self
+
+
+def main() -&gt; None:
+    print(UserCreate(email=&#x27;Sara@Example.com&#x27;, full_name=&#x27;  sara   ahmadi &#x27;, password=&#x27;secret123&#x27;))
+
+    for data in [
+        {&#x27;email&#x27;: &#x27;not-an-email&#x27;, &#x27;full_name&#x27;: &#x27;S&#x27;, &#x27;password&#x27;: &#x27;short&#x27;},
+        {&#x27;email&#x27;: &#x27;a@b.com&#x27;, &#x27;full_name&#x27;: &#x27;Ali&#x27;, &#x27;password&#x27;: &#x27;onlyletters&#x27;},
+    ]:
+        try:
+            UserCreate(**data)
+        except ValidationError as error:
+            print([f&#x27;{e[&quot;loc&quot;][0]}: {e[&quot;msg&quot;]}&#x27; for e in error.errors()])
+
+    try:
+        PriceRange(min_price=500, max_price=100)
+    except ValidationError as error:
+        print(error.errors()[0][&#x27;msg&#x27;])
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">field_validator و model_validator: نمونه <bdi dir="ltr">05_custom_validators/app.py</bdi></p>
+    <ul>
+        <li><code>@field_validator(&#x27;full_name&#x27;)</code> یک فیلد را تمیز یا رد می‌کند. مقدار (شاید تغییرکرده) را برگردانید یا <code>ValueError</code> بدهید.</li>
+        <li><code>@model_validator(mode=&#x27;after&#x27;)</code> چند فیلد را با هم بررسی می‌کند، مثل «حداقل قیمت از حداکثر بیشتر نباشد».</li>
+        <li><code>EmailStr</code> ایمیل را بررسی می‌کند و به <code>pydantic[email]</code> نیاز دارد.</li>
+    </ul>
+
+    <h2 id="s6">۶. سریال‌سازی و from_attributes</h2>
+    <pre class="code"><code>from pydantic import BaseModel, ConfigDict, computed_field
+
+
+class CourseRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    price: int
+    capacity: int
+    enrolled: int
+    created_at: datetime
+
+    @computed_field
+    @property
+    def seats_left(self) -&gt; int:
+        return self.capacity - self.enrolled
+
+
+@dataclass
+class CourseRow:
+    &quot;&quot;&quot;Pretend this came from a database.&quot;&quot;&quot;
+
+    id: int
+    title: str
+    price: int
+    capacity: int
+    enrolled: int
+    created_at: datetime
+    internal_note: str
+
+
+def main() -&gt; None:
+    row = CourseRow(1, &#x27;FastAPI&#x27;, 4_800_000, 12, 10, datetime(2026, 9, 24, 18, 0), &#x27;secret&#x27;)
+
+    course = CourseRead.model_validate(row)  # reads attributes, ignores internal_note
+    print(course.model_dump())
+    print(course.model_dump(include={&#x27;title&#x27;, &#x27;seats_left&#x27;}))
+    print(course.model_dump_json(indent=2))
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">از مدل به دیکشنری و JSON: نمونه <bdi dir="ltr">06_serialization/app.py</bdi></p>
+    <ul>
+        <li><code>model_dump(include=..., exclude=...)</code> فقط بخشی از فیلدها را می‌دهد.</li>
+        <li><code>@computed_field</code> مقداری محاسبه‌شده، مثل صندلی‌های خالی، به خروجی اضافه می‌کند.</li>
+        <li><code>from_attributes=True</code> یعنی مدل می‌تواند از <strong>هر شیئی با صفت</strong> خوانده شود، نه فقط دیکشنری. فصل پنجم برای خواندن ردیف‌های SQLAlchemy دقیقاً به همین نیاز دارد.</li>
+    </ul>
+
+    <h2 id="s7">۷. پیش‌بینی کنید: چرا قبول شد، چرا رد شد؟</h2>
+    <p>این بخش تمرین کلاسی است. فایل <code>07_diagnose_validation/app.py</code> دوازده ورودی دارد. <strong>پیش از اجرا</strong> برای هر کدام روی کاغذ بنویسید قبول می‌شود یا رد، و اگر رد می‌شود به خاطر کدام فیلد. بعد اجرا کنید و مقایسه کنید.</p>
+    <pre class="code"><code>class Enrollment(BaseModel):
+    student_id: int
+    course_id: int = Field(gt=0)
+    paid: bool = False
+    amount: int = Field(default=0, ge=0)
+    note: str | None = None
+    strict_code: int | None = Field(default=None, strict=True)
+
+
+CASES = [
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2},
+    {&#x27;student_id&#x27;: &#x27;1&#x27;, &#x27;course_id&#x27;: &#x27;2&#x27;},
+    {&#x27;student_id&#x27;: 1.0, &#x27;course_id&#x27;: 2},
+    {&#x27;student_id&#x27;: 1.5, &#x27;course_id&#x27;: 2},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 0},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;paid&#x27;: &#x27;yes&#x27;},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;paid&#x27;: &#x27;maybe&#x27;},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;amount&#x27;: &#x27;-1&#x27;},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;note&#x27;: 42},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;strict_code&#x27;: &#x27;7&#x27;},
+    {&#x27;student_id&#x27;: 1, &#x27;course_id&#x27;: 2, &#x27;unknown_field&#x27;: &#x27;x&#x27;},
+    {&#x27;course_id&#x27;: 2},
+]</code></pre>
+    <p class="code-caption">دوازده ورودی برای پیش‌بینی: نمونه <bdi dir="ltr">07_diagnose_validation/app.py</bdi></p>
+    <div class="note">
+        <span class="box-title">چند پاسخ غافلگیرکننده</span>
+        <p>مورد ۳ (<code>1.0</code>) قبول می‌شود، چون عدد اعشاری بدون کسر بی‌خطر به عدد صحیح تبدیل می‌شود؛ مورد ۴ (<code>1.5</code>) رد می‌شود. مورد ۱۰ (<code>&#x27;7&#x27;</code>) رد می‌شود چون آن فیلد <code>strict=True</code> است و تبدیل را خاموش کرده است. مورد ۱۱ با فیلد ناشناخته قبول می‌شود، چون Pydantic به‌طور پیش‌فرض فیلدهای اضافه را نادیده می‌گیرد؛ با <code>extra=&#x27;forbid&#x27;</code> رد می‌شود.</p>
+    </div>
+
+    <h2 id="s8">۸. مدل پاسخ: کنترل آنچه از API خارج می‌شود</h2>
+    <p>کاربر ذخیره‌شده یک درهم‌ساز رمز دارد که هرگز نباید برگردد. نوع بازگشتی endpoint یا <code>response_model</code> مدلی <strong>بدون</strong> آن فیلد است:</p>
+    <pre class="code"><code>USERS = {
+    1: {&#x27;id&#x27;: 1, &#x27;email&#x27;: &#x27;sara@example.com&#x27;, &#x27;full_name&#x27;: &#x27;Sara&#x27;, &#x27;password_hash&#x27;: &#x27;x9$2...&#x27;},
+}
+
+
+class UserRead(BaseModel):
+    id: int
+    email: str
+    full_name: str
+
+
+@app.get(&#x27;/users/{user_id}&#x27;, response_model=UserRead)
+def get_user(user_id: int) -&gt; dict:
+    if user_id not in USERS:
+        raise HTTPException(404, detail=&#x27;User not found&#x27;)
+    return USERS[user_id]  # the hash is in here, but it will be filtered out
+
+
+@app.get(&#x27;/users&#x27;, response_model=list[UserRead])
+def list_users() -&gt; list[dict]:
+    return list(USERS.values())</code></pre>
+    <p class="code-caption">پنهان کردن درهم‌ساز رمز: نمونه <bdi dir="ltr">08_response_model/app.py</bdi></p>
+    <p>FastAPI داده خروجی را با <code>UserRead</code> بررسی می‌کند و هر فیلدی را که آنجا تعریف نشده حذف می‌کند. مستند <code>/docs</code> هم دقیقاً همین شکل را نشان می‌دهد.</p>
+
+    <h2 id="s9">۹. یک منبع، سه طرح‌واره</h2>
+    <p>داده <strong>ورودی</strong> و داده <strong>خروجی</strong> یک شکل ندارند:</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>طرح‌واره</th><th>پاسخ به این سؤال</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>CourseCreate</code></td><td>کلاینت هنگام ساختن چه چیزی را <strong>می‌تواند تعیین کند</strong>؟ (بدون id، بدون تاریخ)</td></tr>
+                <tr><td><code>CourseUpdate</code></td><td>کلاینت چه چیزی را <strong>می‌تواند تغییر دهد</strong>؟ (همه اختیاری)</td></tr>
+                <tr><td><code>CourseRead</code></td><td>کلاینت چه چیزی را <strong>می‌تواند ببیند</strong>؟ (با id و تاریخ ساخت)</td></tr>
+                <tr><td>مدل پایگاه داده (فصل ۵)</td><td>داده <strong>چگونه ذخیره</strong> می‌شود؟</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <pre class="code"><code>class CourseBase(BaseModel):
+    title: str = Field(min_length=3, max_length=200)
+    price: int = Field(ge=0)
+    capacity: int = Field(gt=0, le=500)
+
+
+class CourseCreate(CourseBase):
+    pass
+
+
+class CourseUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=200)
+    price: int | None = Field(default=None, ge=0)
+    capacity: int | None = Field(default=None, gt=0, le=500)
+
+
+class CourseRead(CourseBase):
+    id: int
+    created_at: datetime
+
+
+COURSES: dict[int, CourseRead] = {}</code></pre>
+    <p class="code-caption">Create و Update و Read: نمونه <bdi dir="ltr">09_create_update_read/app.py</bdi></p>
+    <p>چهار کلاس برای یک «دوره» ممکن است زیاد به نظر برسد، اما مخلوط کردن آنها همان راهی است که API‌ها از طریقش رمز لو می‌دهند یا به دانشجو اجازه می‌دهند <code>role: admin</code> بفرستد.</p>
+
+    <h2 id="s10">۱۰. پروژه: API آموزشگاه، نسخه دو</h2>
+    <p>همه طرح‌واره‌های پروژه در یک فایل <code>schemas.py</code> جمع می‌شوند و هیچ endpointی دیگر دیکشنری خام نمی‌پذیرد یا برنمی‌گرداند.</p>
+    <pre class="code"><code>Level = Literal[&#x27;beginner&#x27;, &#x27;intermediate&#x27;, &#x27;advanced&#x27;]
+Role = Literal[&#x27;admin&#x27;, &#x27;instructor&#x27;, &#x27;student&#x27;]
+Title = Annotated[str, Field(min_length=3, max_length=200)]
+Price = Annotated[int, Field(ge=0, le=1_000_000_000, description=&#x27;Price in Toman&#x27;)]
+Capacity = Annotated[int, Field(gt=0, le=500)]
+
+
+# ---------- courses ----------
+class CourseBase(BaseModel):
+    title: Title
+    description: str = Field(default=&#x27;&#x27;, max_length=2000)
+    price: Price
+    capacity: Capacity
+    level: Level = &#x27;beginner&#x27;
+
+    @field_validator(&#x27;title&#x27;)
+    @classmethod
+    def clean_title(cls, value: str) -&gt; str:
+        return &#x27; &#x27;.join(value.split())
+
+
+class CourseCreate(CourseBase):
+    instructor_id: int
+
+
+class CourseUpdate(BaseModel):
+    title: Title | None = None
+    description: str | None = Field(default=None, max_length=2000)
+    price: Price | None = None
+    capacity: Capacity | None = None
+    level: Level | None = None
+
+    @model_validator(mode=&#x27;after&#x27;)
+    def not_empty(self) -&gt; Self:
+        if not self.model_fields_set:
+            raise ValueError(&#x27;send at least one field to change&#x27;)
+        return self
+
+
+class CourseRead(CourseBase):
+    id: int
+    instructor_id: int
+    created_at: datetime</code></pre>
+    <p class="code-caption">طرح‌واره‌های دوره: <bdi dir="ltr">10_project/schemas.py</bdi></p>
+    <ul>
+        <li><code>Level</code> یک <code>Literal</code> است؛ <code>?level=expert</code> خودکار ۴۲۲ می‌گیرد.</li>
+        <li><code>clean_title</code> فاصله‌های اضافه عنوان را حذف می‌کند.</li>
+        <li><code>CourseUpdate</code> بدنه خالی را رد می‌کند.</li>
+        <li>اولین endpoint ثبت‌نام هم اضافه شده است: دوره پر و ثبت‌نام دوباره ۴۰۹ می‌گیرند.</li>
+    </ul>
+    <p>در Bruno پوشه <code>10_project/bruno</code> را اجرا کنید. درخواست «Create course - every field wrong» چهار خطا را در یک پاسخ نشان می‌دهد.</p>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S03-pydantic-validation</code> ده پوشه دارد. نمونه‌های ۰۱ تا ۰۷ اسکریپت‌اند و فقط <code>python app.py</code> لازم دارند. نمونه‌های ۰۸ و ۰۹ سرورند. پروژه با <code>python main.py</code> در <code>10_project</code> اجرا می‌شود.</p>
+    </div>
+
+    <h2 id="s11">۱۱. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>BaseModel</code></td><td>تبدیل و بررسی داده</td></tr>
+                <tr><td><code>model_validate</code>، <code>model_validate_json</code></td><td>ساختن مدل از دیکشنری یا متن</td></tr>
+                <tr><td><code>Field(ge=..., max_length=...)</code></td><td>قاعده برای یک فیلد</td></tr>
+                <tr><td><code>Annotated[int, Field(...)]</code></td><td>قاعده قابل استفاده دوباره</td></tr>
+                <tr><td><code>= None</code></td><td>فیلد اختیاری</td></tr>
+                <tr><td><code>model_fields_set</code>، <code>exclude_unset</code></td><td>تشخیص فیلدهای فرستاده‌شده</td></tr>
+                <tr><td><code>@field_validator</code>، <code>@model_validator</code></td><td>قاعده سفارشی</td></tr>
+                <tr><td><code>EmailStr</code></td><td>بررسی ایمیل</td></tr>
+                <tr><td><code>from_attributes=True</code></td><td>خواندن از شیء، نه فقط دیکشنری</td></tr>
+                <tr><td><code>@computed_field</code></td><td>مقدار محاسبه‌شده در خروجی</td></tr>
+                <tr><td>نوع بازگشتی یا <code>response_model</code></td><td>کنترل آنچه خارج می‌شود</td></tr>
+                <tr><td>Create / Update / Read</td><td>سه طرح‌واره برای یک منبع</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_basemodel</code> یک <code>Course</code> از <code>{&quot;id&quot;: &quot;7.0&quot;, &quot;title&quot;: 12, &quot;price&quot;: &quot;4,800,000&quot;}</code> بسازید. پیش از اجرا نتیجه هر فیلد را پیش‌بینی کنید.</li>
+            <li>به <code>Course</code> مقدار <code>model_config = ConfigDict(extra=&#x27;forbid&#x27;)</code> بدهید. برای فیلد ناشناخته چه تغییری می‌کند؟</li>
+            <li>نوع <code>Phone</code> را برای شماره همراه ایرانی (<code>09</code> و نه رقم) با <code>pattern</code> تعریف کنید.</li>
+            <li>به <code>UserCreate</code> فیلد <code>password_repeat</code> اضافه کنید و با <code>model_validator</code> برابری دو رمز را بررسی کنید.</li>
+            <li>برای هر پیش‌بینی نادرستتان در <code>07_diagnose_validation</code> یک جمله توضیح بنویسید.</li>
+            <li>در پروژه <code>CourseDetail</code> بسازید که مدرس را به شکل یک <code>UserRead</code> تودرتو برگرداند.</li>
+            <li><code>@computed_field</code> برای صندلی‌های خالی دوره در پروژه اضافه کنید.</li>
+            <li><code>PUT /courses/{course_id}</code> را با طرح‌واره <code>CourseReplace</code> بنویسید. چرا <code>instructor_id</code> حالت خاصی دارد؟</li>
+            <li><strong>تکلیف:</strong> برای API کتابخانه <code>BookCreate</code>، <code>BookUpdate</code>، <code>BookRead</code> و <code>MemberCreate</code>، <code>MemberRead</code> بنویسید: شابک ۱۰ یا ۱۳ رقمی، سال بین ۱۴۵۰ و امسال، ایمیل معتبر و یک <code>model_validator</code> که کتابی با تعداد صفحه کمتر از تعداد فصل را رد کند.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-02.html">فصل قبل: قدم‌های اول FastAPI</a>
+        <a href="chapter-04.html">فصل بعد: تزریق وابستگی، ساختار، خطاها و تنظیمات</a>
+    </div>
+
+</main>
+
+</body>
+</html>

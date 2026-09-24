@@ -1,0 +1,17 @@
+meta {
+  name: Cancel Reza
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/courses/3/enrollments/5
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

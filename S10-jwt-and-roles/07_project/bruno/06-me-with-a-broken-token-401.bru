@@ -1,0 +1,21 @@
+meta {
+  name: Me with a broken token (401)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{brokenToken}}
+}
+
+tests {
+  test("status is 401", function() {
+    expect(res.status).to.equal(401);
+  });
+}

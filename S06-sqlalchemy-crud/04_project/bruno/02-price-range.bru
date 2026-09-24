@@ -1,0 +1,17 @@
+meta {
+  name: Price range
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/courses?min_price=2000000&max_price=3000000
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

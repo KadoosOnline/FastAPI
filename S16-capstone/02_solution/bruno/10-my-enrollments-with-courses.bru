@@ -1,0 +1,22 @@
+meta {
+  name: My enrollments with courses
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/users/me/enrollments
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body[0].course.title).to.equal("FastAPI");
+  });
+}

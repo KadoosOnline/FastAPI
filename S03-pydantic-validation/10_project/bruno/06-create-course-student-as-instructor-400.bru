@@ -1,0 +1,26 @@
+meta {
+  name: Create course - student as instructor (400)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "Hacking",
+    "price": 1,
+    "capacity": 1,
+    "instructor_id": 2
+  }
+}
+
+tests {
+  test("status is 400", function() {
+    expect(res.status).to.equal(400);
+  });
+}

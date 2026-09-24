@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل نه: احراز هویت و امنیت رمز عبور. احراز هویت و مجوز، درهم‌سازی با Argon2، ثبت‌نام، فرم OAuth2، شناسایی کاربران، حمله زمانی، مهاجرت ستون رمز">
+    <title>فصل ۹: احراز هویت و امنیت رمز عبور</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۹</span>
+        <h1>احراز هویت و امنیت رمز عبور</h1>
+        <p class="lead">به کاربران اجازه می‌دهیم ثابت کنند چه کسی هستند. رمز را تنها به شیوه قابل قبول ذخیره می‌کنیم، یعنی یک درهم‌ساز کند و نمک‌دار Argon2، ثبت‌نام و ورود را با ابزارهای فرم OAuth2 خود FastAPI می‌سازیم و همه حالت‌های شکست را درست مدیریت می‌کنیم: رمز اشتباه، کاربر ناشناخته، ایمیل تکراری، حساب غیرفعال و رمز ضعیف. فصل بعد ورود موفق را به یک توکن JWT تبدیل می‌کند.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">احراز هویت یا مجوز؟</a></li>
+            <li><a href="#s2">رمز را هرگز ذخیره نکنید، فقط درهم‌سازش را</a></li>
+            <li><a href="#s3">ثبت‌نام</a></li>
+            <li><a href="#s4">جریان رمز OAuth2</a></li>
+            <li><a href="#s5">شکست‌های ورود، درست و امن</a></li>
+            <li><a href="#s6">پروژه: ثبت‌نام و ورود</a></li>
+            <li><a href="#s7">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. احراز هویت یا مجوز؟</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>واژه</th><th>سؤال</th><th>پاسخ منفی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>احراز هویت (authentication)</td><td>«شما کیستید؟»</td><td>۴۰۱ Unauthorized</td></tr>
+                <tr><td>مجوز (authorization)</td><td>«اجازه دارید؟»</td><td>۴۰۳ Forbidden</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>این فصل درباره اولی است: کاربر با رمزش ثابت می‌کند کیست. فصل دهم درباره دومی است.</p>
+
+    <h2 id="s2">۲. رمز را هرگز ذخیره نکنید، فقط درهم‌سازش را</h2>
+    <p>اگر پایگاه داده لو برود، رمزهای خام فاجعه‌اند؛ مردم رمزشان را همه‌جا تکرار می‌کنند. <strong>درهم‌ساز</strong> یک تابع یک‌طرفه است: محاسبه‌اش آسان است و برگرداندنش ناممکن. برای بررسی ورود، آنچه کاربر تایپ کرده را درهم‌ساز می‌کنیم و مقایسه می‌کنیم.</p>
+    <p>اما هر درهم‌سازی مناسب نیست:</p>
+    <pre class="code"><code>import hashlib
+import time
+
+from pwdlib import PasswordHash
+
+password_hash = PasswordHash.recommended()  # Argon2 with sensible settings
+
+
+def main() -&gt; None:
+    first = password_hash.hash(&#x27;Password123&#x27;)
+    second = password_hash.hash(&#x27;Password123&#x27;)
+    print(first)
+    print(&#x27;same password, same hash?&#x27;, first == second)  # False: different salts
+
+    print(&#x27;correct password:&#x27;, password_hash.verify(&#x27;Password123&#x27;, first))
+    print(&#x27;wrong password  :&#x27;, password_hash.verify(&#x27;password123&#x27;, first))
+
+    started = time.perf_counter()
+    for _ in range(10):
+        password_hash.hash(&#x27;Password123&#x27;)
+    argon = (time.perf_counter() - started) / 10
+
+    started = time.perf_counter()
+    for _ in range(100_000):
+        hashlib.sha256(b&#x27;Password123&#x27;).hexdigest()
+    sha = (time.perf_counter() - started) / 100_000
+
+    print(f&#x27;argon2: {argon * 1000:.1f} ms per hash&#x27;)
+    print(f&#x27;sha256: {sha * 1_000_000:.2f} microseconds per hash ({argon / sha:,.0f}x faster!)&#x27;)
+    print(&#x27;An attacker wants the FAST one. We choose the slow one.&#x27;)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">Argon2 در برابر SHA-256: نمونه <bdi dir="ltr">01_password_hashing/app.py</bdi></p>
+    <pre class="out">$argon2id$v=19$m=65536,t=3,p=4$T2AXTwwq52nd4808+7ll0Q$1lr0b6XKLYlRX7Auae+fW3cIHkLiC8pP13uUSBQva5I
+same password, same hash? False
+correct password: True
+wrong password  : False
+argon2: 52.5 ms per hash
+sha256: 0.27 microseconds per hash (196,446x faster!)</pre>
+    <ul>
+        <li>MD5 و SHA-256 <strong>سریع‌اند</strong>: یک کارت گرافیک میلیاردها حدس در ثانیه امتحان می‌کند.</li>
+        <li>Argon2 و bcrypt عمداً <strong>کندند</strong> و از یک <strong>نمک</strong> تصادفی استفاده می‌کنند؛ پس یک رمز هر بار درهم‌ساز متفاوتی دارد و جدول‌های از پیش محاسبه‌شده بی‌فایده می‌شوند.</li>
+        <li>رشته درهم‌ساز خودش الگوریتم، تنظیمات و نمک را در خود دارد.</li>
+    </ul>
+    <p>در این دوره از <code>pwdlib</code> با Argon2 استفاده می‌کنیم؛ همان چیزی که مستندات FastAPI پیشنهاد می‌کند.</p>
+
+    <h2 id="s3">۳. ثبت‌نام</h2>
+    <pre class="code"><code>def strong_password(value: str) -&gt; str:
+    if value.isdigit() or value.isalpha():
+        raise ValueError(&#x27;use letters AND digits&#x27;)
+    if value.lower() in {&#x27;password1&#x27;, &#x27;password123&#x27;, &#x27;qwerty123&#x27;}:
+        raise ValueError(&#x27;this password is too common&#x27;)
+    return value
+
+
+Password = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(strong_password)]
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=2)
+    password: Password
+
+
+class UserRead(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+
+
+USERS: dict[str, dict] = {}  # email -&gt; stored user
+app = FastAPI()
+
+
+@app.post(&#x27;/auth/register&#x27;, status_code=status.HTTP_201_CREATED)
+def register(data: UserCreate) -&gt; UserRead:
+    email = data.email.lower()
+    if email in USERS:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=&#x27;Email already registered&#x27;)
+    user = {
+        &#x27;id&#x27;: len(USERS) + 1,
+        &#x27;email&#x27;: email,
+        &#x27;full_name&#x27;: data.full_name,
+        &#x27;role&#x27;: &#x27;student&#x27;,  # ALWAYS student here
+        &#x27;hashed_password&#x27;: password_hash.hash(data.password),
+    }
+    USERS[email] = user
+    return UserRead(**user)</code></pre>
+    <p class="code-caption">اعتبارسنجی رمز، ذخیره درهم‌ساز: نمونه <bdi dir="ltr">02_register/app.py</bdi></p>
+    <p>سه طرح‌واره فصل سوم حالا دلیل امنیتی دارند: <code>UserCreate</code> رمز خام را دارد (فقط در حافظه و فقط در مسیر ورودی)، کاربر ذخیره‌شده <code>hashed_password</code> دارد و <code>UserRead</code> هیچ‌کدام را ندارد.</p>
+    <div class="warn">
+        <span class="box-title">ثبت‌نام عمومی هرگز role نمی‌پذیرد</span>
+        <p>وگرنه هر کسی به عنوان مدیر ثبت‌نام می‌کند. Pydantic فیلدهای ناشناخته را نادیده می‌گیرد، پس کلاینتی که <code>&quot;role&quot;: &quot;admin&quot;</code> بفرستد باز هم دانشجو می‌شود.</p>
+    </div>
+
+    <h2 id="s4">۴. جریان رمز OAuth2</h2>
+    <p>روش استاندارد ورود به یک API: کلاینت یک <strong>فرم</strong> (نه JSON) با <code>username</code> و <code>password</code> به نشانی توکن می‌فرستد و یک توکن دسترسی می‌گیرد. بعد همان توکن را در هر درخواست می‌فرستد:</p>
+    <pre class="out">POST /auth/token        body: username=sara@example.com&amp;password=...
+&lt;- {&quot;access_token&quot;: &quot;...&quot;, &quot;token_type&quot;: &quot;bearer&quot;}
+
+GET /users/me           header: Authorization: Bearer &lt;access_token&gt;</pre>
+    <pre class="code"><code>@app.post(&#x27;/auth/token&#x27;)
+def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -&gt; dict[str, str]:
+    user = USERS.get(form.username.lower())
+    if user is None or not password_hash.verify(form.password, user[&#x27;hashed_password&#x27;]):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail=&#x27;Incorrect email or password&#x27;,
+            headers={&#x27;WWW-Authenticate&#x27;: &#x27;Bearer&#x27;},
+        )
+    token = secrets.token_urlsafe(32)
+    TOKENS[token] = user[&#x27;email&#x27;]
+    return {&#x27;access_token&#x27;: token, &#x27;token_type&#x27;: &#x27;bearer&#x27;}
+
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -&gt; dict:
+    email = TOKENS.get(token)
+    if email is None:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail=&#x27;Invalid token&#x27;,
+            headers={&#x27;WWW-Authenticate&#x27;: &#x27;Bearer&#x27;},
+        )
+    return USERS[email]
+
+
+@app.get(&#x27;/users/me&#x27;)
+def read_me(user: Annotated[dict, Depends(get_current_user)]) -&gt; dict[str, str]:
+    return {&#x27;email&#x27;: user[&#x27;email&#x27;], &#x27;full_name&#x27;: user[&#x27;full_name&#x27;]}</code></pre>
+    <p class="code-caption">فرم ورود و خواندن توکن: نمونه <bdi dir="ltr">03_oauth2_password_form/app.py</bdi></p>
+    <ul>
+        <li><code>OAuth2PasswordRequestForm</code> فرم را می‌خواند و به <code>python-multipart</code> نیاز دارد. فیلد <code>username</code> نام دارد حتی وقتی ایمیل است؛ OAuth2 این‌طور تعریف کرده.</li>
+        <li><code>OAuth2PasswordBearer(tokenUrl=...)</code> وابستگی‌ای است که هدر <code>Authorization: Bearer ...</code> را می‌خواند (اگر نباشد ۴۰۱) و در <code>/docs</code> یک دکمه <strong>Authorize</strong> اضافه می‌کند.</li>
+        <li>توکن این مثال یک رشته تصادفی در دیکشنری است. فصل دهم آن را با JWT امضاشده عوض می‌کند که به ذخیره در سرور نیاز ندارد.</li>
+    </ul>
+
+    <h2 id="s5">۵. شکست‌های ورود، درست و امن</h2>
+    <pre class="code"><code>from pwdlib import PasswordHash
+
+password_hash = PasswordHash.recommended()
+DUMMY_HASH = password_hash.hash(&#x27;dummy-password&#x27;)
+MAX_FAILURES = 5
+
+USERS = {
+    &#x27;sara@example.com&#x27;: {&#x27;hashed_password&#x27;: password_hash.hash(&#x27;Password123&#x27;), &#x27;is_active&#x27;: True},
+    &#x27;old@example.com&#x27;: {&#x27;hashed_password&#x27;: password_hash.hash(&#x27;Password123&#x27;), &#x27;is_active&#x27;: False},
+}
+FAILURES: dict[str, int] = {}
+
+app = FastAPI()
+
+
+def invalid_credentials() -&gt; HTTPException:
+    return HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        detail=&#x27;Incorrect email or password&#x27;,
+        headers={&#x27;WWW-Authenticate&#x27;: &#x27;Bearer&#x27;},
+    )
+
+
+@app.post(&#x27;/auth/login&#x27;)
+def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]) -&gt; dict:
+    started = time.perf_counter()
+    email = form.username.lower()
+    if FAILURES.get(email, 0) &gt;= MAX_FAILURES:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, detail=&#x27;Too many attempts, wait&#x27;)
+
+    user = USERS.get(email)
+    if user is None:
+        password_hash.verify(form.password, DUMMY_HASH)  # spend the same time
+        raise invalid_credentials()
+
+    valid, new_hash = password_hash.verify_and_update(form.password, user[&#x27;hashed_password&#x27;])
+    if not valid:
+        FAILURES[email] = FAILURES.get(email, 0) + 1
+        raise invalid_credentials()
+    if not user[&#x27;is_active&#x27;]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail=&#x27;This account is disabled&#x27;)
+    if new_hash:
+        user[&#x27;hashed_password&#x27;] = new_hash
+    FAILURES.pop(email, None)
+    return {&#x27;login&#x27;: &#x27;ok&#x27;, &#x27;took_ms&#x27;: round((time.perf_counter() - started) * 1000)}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">شناسایی کاربران، حمله زمانی و تلاش‌های زیاد: نمونه <bdi dir="ltr">04_login_errors/app.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>وضعیت</th><th>پاسخ</th><th>پیام</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>ایمیل ناشناخته</td><td>۴۰۱</td><td>Incorrect email or password</td></tr>
+                <tr><td>رمز اشتباه</td><td>۴۰۱</td><td>Incorrect email or password</td></tr>
+                <tr><td>حساب غیرفعال</td><td>۴۰۳</td><td>This account is disabled</td></tr>
+                <tr><td>تلاش‌های زیاد</td><td>۴۲۹</td><td>Too many attempts</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <ul>
+        <li><strong>یک پیام برای ایمیل ناشناخته و رمز اشتباه.</strong> در غیر این صورت مهاجم می‌فهمد کدام ایمیل‌ها ثبت شده‌اند (شناسایی کاربران).</li>
+        <li><strong>درهم‌ساز ساختگی برای ایمیل ناشناخته.</strong> درهم‌سازی حدود پنجاه میلی‌ثانیه طول می‌کشد. بدون آن «کاربر ناشناخته» خیلی سریع‌تر از «رمز اشتباه» پاسخ می‌گیرد و مهاجم همان اطلاعات را از <strong>زمان</strong> پاسخ می‌فهمد.</li>
+        <li>بررسی «غیرفعال» <strong>بعد از</strong> بررسی رمز است: فقط صاحب واقعی حساب می‌فهمد حساب غیرفعال است.</li>
+        <li><code>verify_and_update</code> اگر درهم‌ساز ذخیره‌شده با تنظیمات قدیمی‌تر ساخته شده باشد، درهم‌ساز تازه برمی‌گرداند و رمزها هنگام ورود بی‌صدا ارتقا می‌یابند.</li>
+    </ul>
+
+    <h2 id="s6">۶. پروژه: ثبت‌نام و ورود</h2>
+    <p>یک ستون تازه یعنی یک مهاجرت تازه. اما جدول کاربران از قبل ردیف دارد و ستون NOT NULL تازه نمی‌تواند خالی بماند:</p>
+    <pre class="code"><code>&quot;&quot;&quot;add users.hashed_password (session 9)
+
+Revision ID: 0003
+Revises: 0002
+Create Date: 2026-09-24
+
+Existing users get the value &#x27;!&#x27;, which is not a valid hash: nobody can log
+in with it, so those users must set a new password. Never invent real
+passwords in a migration.
+&quot;&quot;&quot;
+
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+from alembic import op
+
+revision: str = &#x27;0003&#x27;
+down_revision: str | None = &#x27;0002&#x27;
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def upgrade() -&gt; None:
+    with op.batch_alter_table(&#x27;users&#x27;, schema=None) as batch_op:
+        batch_op.add_column(
+            sa.Column(&#x27;hashed_password&#x27;, sa.String(length=255), nullable=False, server_default=&#x27;!&#x27;)
+        )
+
+
+def downgrade() -&gt; None:
+    with op.batch_alter_table(&#x27;users&#x27;, schema=None) as batch_op:
+        batch_op.drop_column(&#x27;hashed_password&#x27;)</code></pre>
+    <p class="code-caption">ستون رمز برای کاربرانی که از قبل هستند: <bdi dir="ltr">03_add_user_hashed_password.py</bdi></p>
+    <p>مقدار <code>&#x27;!&#x27;</code> یک درهم‌ساز معتبر نیست؛ هیچ‌کس نمی‌تواند با آن وارد شود و این کاربران باید رمز تازه بگذارند. هرگز در مهاجرت رمز واقعی اختراع نکنید.</p>
+    <pre class="code"><code>    def authenticate(self, email: str, password: str) -&gt; User:
+        &quot;&quot;&quot;Return the user if the credentials are right, otherwise raise.
+
+        Unknown e-mail and wrong password give the SAME error, so an attacker
+        can not find out which e-mails are registered.
+        &quot;&quot;&quot;
+        user = self.db.scalar(select(User).where(User.email == email.lower()))
+        if user is None:
+            verify_password(password, &#x27;!&#x27;)  # same time as a real check
+            raise AuthenticationError(&#x27;Incorrect email or password&#x27;)
+        valid, new_hash = verify_password(password, user.hashed_password)
+        if not valid:
+            raise AuthenticationError(&#x27;Incorrect email or password&#x27;)
+        if not user.is_active:
+            raise PermissionDeniedError(&#x27;This account is disabled&#x27;)
+        if new_hash is not None:
+            user.hashed_password = new_hash
+            self.db.commit()
+        return user</code></pre>
+    <p class="code-caption">سرویس احراز هویت: <bdi dir="ltr">05_project/app/services.py</bdi></p>
+    <ul>
+        <li><code>POST /auth/register</code> ثبت‌نام عمومی است و <strong>همیشه</strong> دانشجو می‌سازد.</li>
+        <li><code>POST /auth/login</code> فرم OAuth2 می‌گیرد و برای شکست‌ها همان جدول بالا را اجرا می‌کند.</li>
+        <li><code>POST /users</code> حالا فقط مخصوص مدیر است و کاربر را با رمز و هر نقشی می‌سازد.</li>
+    </ul>
+    <p>ورود فعلاً «Login successful» و خود کاربر را برمی‌گرداند. فصل بعد آن را به یک توکن دسترسی JWT تبدیل می‌کند و <code>X-API-Key</code> را با کاربران و نقش‌های واقعی جایگزین می‌کند.</p>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>در <code>/docs</code> endpoint ورود یک فرم است. آن را آنجا و در Bruno امتحان کنید. در Bruno درخواستی بفرستید که ورود را با JSON به جای فرم انجام دهد. چه کدی می‌گیرید؟</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S09-authentication</code> پنج پوشه دارد. برای پروژه: <code>alembic upgrade head</code> (نسخه ۰۰۰۳ ستون رمز را اضافه می‌کند)، بعد <code>python seed.py</code> و <code>python main.py</code>. رمز همه حساب‌های نمونه <code>Password123</code> است.</p>
+    </div>
+
+    <h2 id="s7">۷. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>PasswordHash.recommended()</code></td><td>Argon2 با تنظیمات مناسب</td></tr>
+                <tr><td><code>hash</code>، <code>verify</code>، <code>verify_and_update</code></td><td>درهم‌سازی، بررسی، ارتقای بی‌صدا</td></tr>
+                <tr><td><code>Annotated[str, Field(...), AfterValidator(...)]</code></td><td>قاعده رمز قابل استفاده دوباره</td></tr>
+                <tr><td><code>OAuth2PasswordRequestForm</code></td><td>خواندن فرم ورود</td></tr>
+                <tr><td><code>OAuth2PasswordBearer(tokenUrl=...)</code></td><td>خواندن توکن و دکمه Authorize</td></tr>
+                <tr><td>هدر <code>WWW-Authenticate: Bearer</code></td><td>همراه هر پاسخ ۴۰۱</td></tr>
+                <tr><td>یک پیام برای دو شکست</td><td>جلوگیری از شناسایی کاربران</td></tr>
+                <tr><td>درهم‌ساز ساختگی</td><td>جلوگیری از حمله زمانی</td></tr>
+                <tr><td><code>&#x27;!&#x27;</code> در مهاجرت</td><td>ستون رمز برای کاربران موجود</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>سه بخش یک رشته درهم‌ساز Argon2 را چاپ کنید. کدام بخش مخفی است؟ (سؤال انحرافی است.)</li>
+            <li>در <code>02_register</code> فیلد <code>password_repeat</code> و بررسی برابری آن را اضافه کنید و مطمئن شوید ذخیره نمی‌شود.</li>
+            <li>در <code>04_login_errors</code> خط درهم‌ساز ساختگی را حذف کنید و زمان بیست ورود با ایمیل ناشناخته و بیست ورود با رمز اشتباه را با یک اسکریپت httpx اندازه بگیرید.</li>
+            <li>محدودیت تلاش را طوری تغییر دهید که بعد از پنج دقیقه بازنشانی شود.</li>
+            <li>در پروژه <code>POST /auth/change-password</code> بنویسید؛ رمز قدیمی اشتباه ۴۰۱ بگیرد.</li>
+            <li>ستون <code>last_login_at</code> را با نسخه ۰۰۰۴ اضافه و در <code>authenticate</code> مقداردهی کنید.</li>
+            <li>هر ورود ناموفق را با <code>logging</code> ثبت کنید: ایمیل و زمان، <strong>هرگز</strong> رمز.</li>
+            <li><strong>تکلیف:</strong> حساب اعضا را به کتابخانه اضافه کنید: ثبت‌نام، ورود با فرم OAuth2، Argon2، یک پیام برای ایمیل ناشناخته و رمز اشتباه و ۴۰۳ برای اعضای مسدود.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-08.html">فصل قبل: Alembic، صفحه‌بندی، فیلتر و مرتب‌سازی</a>
+        <a href="chapter-10.html">فصل بعد: JWT، کاربر جاری و نقش‌ها</a>
+    </div>
+
+</main>
+
+</body>
+</html>

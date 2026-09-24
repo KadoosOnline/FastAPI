@@ -1,0 +1,32 @@
+meta {
+  name: Replace course (PUT)
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+body:json {
+  {
+    "title": "Docker in Practice",
+    "description": "Containers",
+    "price": 3500000,
+    "capacity": 12,
+    "level": "intermediate",
+    "is_active": true
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

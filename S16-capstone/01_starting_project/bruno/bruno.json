@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Session 16 - Capstone",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

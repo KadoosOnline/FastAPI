@@ -1,0 +1,21 @@
+meta {
+  name: Sara cancels
+  type: http
+  seq: 21
+}
+
+delete {
+  url: {{baseUrl}}/courses/{{courseId}}/enrollments/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

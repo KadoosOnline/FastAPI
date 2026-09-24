@@ -1,0 +1,17 @@
+meta {
+  name: List users without key (401)
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/users
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 401", function() {
+    expect(res.status).to.equal(401);
+  });
+}

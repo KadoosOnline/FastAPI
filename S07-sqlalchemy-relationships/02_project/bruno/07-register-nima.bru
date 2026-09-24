@@ -1,0 +1,30 @@
+meta {
+  name: Register Nima
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "nima@example.com",
+    "full_name": "Nima Rahimi"
+  }
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("nimaId", res.body.id);
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Student not enrolled lists materials (403)
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/courses/1/materials
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

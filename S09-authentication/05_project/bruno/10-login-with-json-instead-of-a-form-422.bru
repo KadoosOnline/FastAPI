@@ -1,0 +1,24 @@
+meta {
+  name: Login with JSON instead of a form (422)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "sara@example.com",
+    "password": "Password123"
+  }
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

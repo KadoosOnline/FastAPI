@@ -1,0 +1,25 @@
+meta {
+  name: Create user
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "Reza@Example.com",
+    "full_name": "Reza Karimi"
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+    expect(res.body.email).to.equal("reza@example.com");
+  });
+}

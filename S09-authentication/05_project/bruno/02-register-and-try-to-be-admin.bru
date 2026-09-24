@@ -1,0 +1,27 @@
+meta {
+  name: Register and try to be admin
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "hacker@example.com",
+    "full_name": "Hacker",
+    "password": "Secret2026",
+    "role": "admin"
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+    expect(res.body.role).to.equal("student");
+  });
+}

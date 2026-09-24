@@ -1,0 +1,18 @@
+meta {
+  name: Filter courses
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/courses?level=beginner&max_price=2000000
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    res.body.forEach(c => expect(c.level).to.equal("beginner"));
+  });
+}

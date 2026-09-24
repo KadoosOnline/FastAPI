@@ -1,0 +1,23 @@
+meta {
+  name: Login - unknown user (401, same message)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  username: nobody@example.com
+  password: {{password}}
+}
+
+tests {
+  test("status is 401", function() {
+    expect(res.status).to.equal(401);
+    expect(res.body.detail).to.equal("Incorrect email or password");
+  });
+}

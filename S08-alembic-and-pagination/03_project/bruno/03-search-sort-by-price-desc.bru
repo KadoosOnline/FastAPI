@@ -1,0 +1,18 @@
+meta {
+  name: Search + sort by price desc
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/courses?q=python&sort=-price
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.items[0].title).to.equal("Advanced Python");
+  });
+}

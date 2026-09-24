@@ -1,0 +1,27 @@
+meta {
+  name: Create course
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "  Docker   for   Developers ",
+    "price": 3000000,
+    "capacity": 15,
+    "instructor_id": 1
+  }
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+    expect(res.body.title).to.equal("Docker for Developers");
+  });
+}

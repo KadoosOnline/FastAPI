@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل یک: مرور پایتون پیشرفته، HTTP و REST. راهنمای نوع، Annotated، جنریک، dataclass، دکوراتور، استثنای سفارشی، مدیر زمینه، async، HTTP و REST، Bruno">
+    <title>فصل ۱: مرور پایتون پیشرفته، HTTP و REST</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱</span>
+        <h1>مرور پایتون پیشرفته، HTTP و REST</h1>
+        <p class="lead">FastAPI همان پایتون است، اما پایتونی که با تمام قدرت به کار رفته. راهنمای نوع را می‌خواند تا درخواست را بررسی کند، با دکوراتور مسیرها را ثبت می‌کند، توابع شما را خودش صدا می‌زند و با async هزاران کاربر را پاسخ می‌دهد. در این فصل همان ابزارها را روی مثال‌هایی از جنس بک‌اند مرور می‌کنیم، با HTTP و REST آشنا می‌شویم، اولین درخواست‌ها را با Bruno می‌فرستیم و هسته پروژه آموزشگاه را با پایتون خالص می‌سازیم.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">چرا مرور، و چرا این موضوع‌ها</a></li>
+            <li><a href="#s2">راهنمای نوع: زبانی که FastAPI می‌خواند</a></li>
+            <li><a href="#s3">Annotated: نوع به‌علاوه قاعده</a></li>
+            <li><a href="#s4">جنریک‌ها: یک کلاس برای همه نوع‌ها</a></li>
+            <li><a href="#s5">dataclass و StrEnum: مدل‌های داده تایپ‌دار</a></li>
+            <li><a href="#s6">توابع مرتبه بالا و بستار</a></li>
+            <li><a href="#s7">دکوراتور، درست نوشته‌شده</a></li>
+            <li><a href="#s8">استثناهای سفارشی: خطاها به زبان کسب‌وکار</a></li>
+            <li><a href="#s9">مدیر زمینه: همیشه پاک‌سازی کن</a></li>
+            <li><a href="#s10">مولدها: یکی‌یکی، فقط وقتی لازم است</a></li>
+            <li><a href="#s11">async و await: منتظر ماندن هم‌زمان</a></li>
+            <li><a href="#s12">HTTP، REST و JSON</a></li>
+            <li><a href="#s13">Bruno: اولین درخواست‌ها</a></li>
+            <li><a href="#s14">بازنویسی یک کد بد</a></li>
+            <li><a href="#s15">پروژه: هسته آموزشگاه با پایتون خالص</a></li>
+            <li><a href="#s16">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. چرا مرور، و چرا این موضوع‌ها</h2>
+    <p>این دوره آموزش پایتون از صفر نیست. اما هر مفهومی که در این فصل مرور می‌شود، در فصل‌های بعد دوباره و دوباره به کار می‌رود:</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>مفهوم پایتون</th><th>جایی که در FastAPI می‌بینیم</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>راهنمای نوع</td><td>تبدیل و بررسی خودکار پارامترها (فصل ۲)</td></tr>
+                <tr><td><code>Annotated</code></td><td>تعریف وابستگی‌ها و قواعد پارامترها (فصل ۳ و ۴)</td></tr>
+                <tr><td>جنریک‌ها</td><td><code>Mapped[int]</code> در SQLAlchemy و <code>Page[CourseRead]</code> (فصل ۵ و ۸)</td></tr>
+                <tr><td>dataclass</td><td>شبیه مدل‌های Pydantic (فصل ۳)</td></tr>
+                <tr><td>تابع مرتبه بالا</td><td><code>Depends(...)</code> و کارخانه وابستگی (فصل ۴ و ۱۰)</td></tr>
+                <tr><td>دکوراتور</td><td><code>@app.get(...)</code> و <code>@router.post(...)</code> (فصل ۲)</td></tr>
+                <tr><td>استثنای سفارشی</td><td>خطاهای کسب‌وکار که به کد وضعیت HTTP تبدیل می‌شوند (فصل ۴)</td></tr>
+                <tr><td>مدیر زمینه</td><td>نشست پایگاه داده و lifespan (فصل ۵ و ۱۲)</td></tr>
+                <tr><td><code>async</code> و <code>await</code></td><td>endpointهای ناهمگام و SQLAlchemy ناهمگام (فصل ۱۲)</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>در کلاس هر مثال را اجرا می‌کنیم، تغییرش می‌دهیم و دوباره اجرا می‌کنیم. توضیح هر بخش کوتاه است؛ کار اصلی با شماست.</p>
+
+    <h2 id="s2">۲. راهنمای نوع: زبانی که FastAPI می‌خواند</h2>
+    <p>در دوره پیشرفته، راهنمای نوع بیشتر برای مستندسازی بود. در FastAPI راهنمای نوع <strong>دستور</strong> است. وقتی می‌نویسید <code>course_id: int</code>، FastAPI مقدار رسیده از آدرس را به عدد تبدیل می‌کند و اگر نشد، پیش از اجرای تابع شما خطای ۴۲۲ برمی‌گرداند. پس از امروز: <strong>هر پارامتر و هر مقدار بازگشتی نوع دارد.</strong></p>
+    <pre class="code"><code>from typing import Literal
+
+# A type alias: give a complicated type a name once, and reuse it.
+Price = int  # Toman. Money is never a float!
+Level = Literal[&#x27;beginner&#x27;, &#x27;intermediate&#x27;, &#x27;advanced&#x27;]  # only these 3 strings
+
+
+def average_price(prices: list[Price]) -&gt; float:
+    &quot;&quot;&quot;`list[Price]` in, `float` out. An empty list is handled, not crashed.&quot;&quot;&quot;
+    if not prices:
+        return 0.0
+    return sum(prices) / len(prices)
+
+
+def find_course(courses: dict[int, str], course_id: int) -&gt; str | None:
+    &quot;&quot;&quot;`str | None` tells every caller: &quot;be ready, I may have nothing for you&quot;.&quot;&quot;&quot;
+    return courses.get(course_id)
+
+
+def describe(title: str, level: Level = &#x27;beginner&#x27;, tags: list[str] | None = None) -&gt; str:
+    &quot;&quot;&quot;Never use a mutable default like `tags: list[str] = []` (it is shared!).&quot;&quot;&quot;
+    tags = tags or []
+    tag_text = &#x27;, &#x27;.join(tags) if tags else &#x27;no tags&#x27;
+    return f&#x27;{title} [{level}] ({tag_text})&#x27;
+
+
+def split_name(full_name: str) -&gt; tuple[str, str]:
+    &quot;&quot;&quot;A tuple with a fixed shape: (first name, last name).&quot;&quot;&quot;
+    first, _, last = full_name.strip().partition(&#x27; &#x27;)
+    return first, last</code></pre>
+    <p class="code-caption">املای امروزی نوع‌ها: نمونه <bdi dir="ltr">01_type_hints/app.py</bdi></p>
+    <ul>
+        <li>به جای <code>List[str]</code> و <code>Optional[str]</code> از <code>list[str]</code> و <code>str | None</code> استفاده می‌کنیم.</li>
+        <li><code>Literal</code> فقط چند مقدار مشخص را می‌پذیرد. FastAPI همین را به یک فهرست انتخابی در <code>/docs</code> تبدیل می‌کند.</li>
+        <li>نوع <code>str | None</code> به هر فراخواننده می‌گوید: «آماده باش، ممکن است چیزی نداشته باشم». ویرایشگر مجبورتان می‌کند حالت <code>None</code> را بررسی کنید.</li>
+    </ul>
+    <div class="warn">
+        <span class="box-title">پایتون نوع‌ها را هنگام اجرا بررسی نمی‌کند</span>
+        <p>اگر به جای <code>int</code> رشته بفرستید، خود پایتون اعتراضی نمی‌کند. ابزاری مثل mypy یا Pylance خطا را پیش از اجرا پیدا می‌کند. FastAPI و Pydantic هم هنگام اجرا بررسی می‌کنند، اما فقط برای داده‌ای که از بیرون می‌رسد.</p>
+    </div>
+
+    <h2 id="s3">۳. Annotated: نوع به‌علاوه قاعده</h2>
+    <p><code>Annotated[int, ...]</code> از نظر پایتون همان <code>int</code> است؛ بخش دوم را پایتون نادیده می‌گیرد، اما ابزارهای دیگر می‌توانند آن را بخوانند. FastAPI دقیقاً همین کار را می‌کند:</p>
+    <pre class="code"><code>def list_courses(page: Annotated[int, Query(ge=1)] = 1): ...
+def get_me(user: Annotated[User, Depends(get_current_user)]): ...</code></pre>
+    <p>در مثال این بخش، نسخه کوچکی از همین ایده را خودمان می‌سازیم: قاعده را به نوع می‌چسبانیم و بعد با <code>get_type_hints(..., include_extras=True)</code> آن را می‌خوانیم و آرگومان‌ها را بررسی می‌کنیم.</p>
+    <pre class="code"><code>@dataclass(frozen=True)
+class Between:
+    &quot;&quot;&quot;A rule object that we will attach to a type.&quot;&quot;&quot;
+
+    low: int
+    high: int
+
+
+@dataclass(frozen=True)
+class MinLength:
+    size: int
+
+
+# Reusable annotated types: define the rule ONCE, use it everywhere.
+Capacity = Annotated[int, Between(1, 500)]
+Title = Annotated[str, MinLength(3)]
+
+
+def validate_call(func: Callable[..., object], **arguments: object) -&gt; list[str]:
+    &quot;&quot;&quot;Check `arguments` against the rules found in the hints of `func`.&quot;&quot;&quot;
+    errors: list[str] = []
+    hints = get_type_hints(func, include_extras=True)
+    for name, value in arguments.items():
+        hint = hints.get(name)
+        if get_origin(hint) is not Annotated:
+            continue
+        base_type, *rules = get_args(hint)
+        if not isinstance(value, base_type):
+            errors.append(f&#x27;{name}: expected {base_type.__name__}, got {type(value).__name__}&#x27;)
+            continue
+        for rule in rules:
+            if isinstance(rule, Between) and not rule.low &lt;= value &lt;= rule.high:
+                errors.append(f&#x27;{name}: must be between {rule.low} and {rule.high}&#x27;)
+            if isinstance(rule, MinLength) and len(value) &lt; rule.size:
+                errors.append(f&#x27;{name}: must have at least {rule.size} characters&#x27;)
+    return errors
+
+
+def create_course(title: Title, capacity: Capacity) -&gt; str:
+    return f&#x27;created {title!r} with {capacity} seats&#x27;</code></pre>
+    <p class="code-caption">FastAPI در چهل خط: نمونه <bdi dir="ltr">02_annotated/app.py</bdi></p>
+    <pre class="out">OK       created &#x27;FastAPI&#x27; with 20 seats
+REJECTED {&#x27;title&#x27;: &#x27;Py&#x27;, &#x27;capacity&#x27;: 0} -&gt; [&#x27;title: must have at least 3 characters&#x27;, &#x27;capacity: must be between 1 and 500&#x27;]
+REJECTED {&#x27;title&#x27;: &#x27;SQL&#x27;, &#x27;capacity&#x27;: &#x27;20&#x27;} -&gt; [&#x27;capacity: expected int, got str&#x27;]</pre>
+
+    <h2 id="s4">۴. جنریک‌ها: یک کلاس برای همه نوع‌ها</h2>
+    <p>کاربر، دوره و ثبت‌نام را باید جایی نگه داریم. نوشتن سه کلاس تقریباً یکسان کار درستی نیست. کلاس <strong>جنریک</strong> نوع را به عنوان پارامتر می‌گیرد. نحو پایتون ۳٫۱۲ <code>class Repository[T: HasId]</code> است: <code>T</code> هر نوعی می‌تواند باشد که صفت <code>id</code> دارد. «داشتن id» را با یک <code>Protocol</code> بیان می‌کنیم: لازم نیست کلاس از چیزی ارث ببرد، کافی است آن صفت را داشته باشد.</p>
+    <pre class="code"><code>class HasId(Protocol):
+    id: int
+
+
+class Repository[T: HasId]:
+    &quot;&quot;&quot;An in-memory store. Later in the course a database replaces the dict.&quot;&quot;&quot;
+
+    def __init__(self) -&gt; None:
+        self._items: dict[int, T] = {}
+
+    def add(self, item: T) -&gt; T:
+        self._items[item.id] = item
+        return item
+
+    def get(self, item_id: int) -&gt; T | None:
+        return self._items.get(item_id)
+
+    def filter(self, predicate: Callable[[T], bool]) -&gt; list[T]:
+        return [item for item in self._items.values() if predicate(item)]
+
+    def __len__(self) -&gt; int:
+        return len(self._items)</code></pre>
+    <p class="code-caption">مخزن جنریک: نمونه <bdi dir="ltr">03_generics/app.py</bdi></p>
+    <p><code>Repository[User]()</code> و <code>Repository[Course]()</code> دو شیء از یک کلاس‌اند، اما ویرایشگر می‌داند <code>users.get(1)</code> یک <code>User</code> برمی‌گرداند. در فصل پنجم همین ایده را در <code>Mapped[int]</code> و در فصل هشتم در <code>Page[CourseRead]</code> می‌بینیم.</p>
+
+    <h2 id="s5">۵. dataclass و StrEnum: مدل‌های داده تایپ‌دار</h2>
+    <p>بک‌اند بیشتر وقتش را صرف جابه‌جا کردن داده می‌کند: کاربر، دوره، ثبت‌نام. <code>@dataclass</code> از روی فیلدهای نوع‌دار، سازنده و <code>__repr__</code> و <code>__eq__</code> را می‌نویسد.</p>
+    <pre class="code"><code>class Role(StrEnum):
+    &quot;&quot;&quot;A StrEnum is a str too: Role.ADMIN == &quot;admin&quot; is True. Great for JSON.&quot;&quot;&quot;
+
+    ADMIN = &#x27;admin&#x27;
+    INSTRUCTOR = &#x27;instructor&#x27;
+    STUDENT = &#x27;student&#x27;
+
+
+def utc_now() -&gt; datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(slots=True, kw_only=True)
+class User:
+    id: int
+    email: str
+    full_name: str
+    role: Role = Role.STUDENT
+    is_active: bool = True
+    created_at: datetime = field(default_factory=utc_now)
+
+    def __post_init__(self) -&gt; None:
+        self.email = self.email.strip().lower()
+        if &#x27;@&#x27; not in self.email:
+            raise ValueError(f&#x27;invalid email: {self.email!r}&#x27;)
+
+
+@dataclass(frozen=True, slots=True)
+class Money:
+    amount: int
+    currency: str = &#x27;IRT&#x27;
+
+    def __add__(self, other: &#x27;Money&#x27;) -&gt; &#x27;Money&#x27;:
+        if other.currency != self.currency:
+            raise ValueError(&#x27;cannot add different currencies&#x27;)
+        return Money(self.amount + other.amount, self.currency)
+
+
+@dataclass(slots=True, kw_only=True)
+class Course:
+    id: int
+    title: str
+    price: Money
+    capacity: int
+    student_ids: list[int] = field(default_factory=list)  # NOT `= []`
+
+    @property
+    def seats_left(self) -&gt; int:
+        return self.capacity - len(self.student_ids)</code></pre>
+    <p class="code-caption">مدل‌ها با dataclass: نمونه <bdi dir="ltr">04_dataclasses/app.py</bdi></p>
+    <ul>
+        <li><code>StrEnum</code> هم enum است و هم رشته: <code>Role.ADMIN == &#x27;admin&#x27;</code> درست است. برای JSON عالی است.</li>
+        <li><code>slots=True</code> حافظه کمتری می‌گیرد و جلوی اشتباه تایپی مثل <code>user.emial = ...</code> را می‌گیرد.</li>
+        <li><code>frozen=True</code> یک «شیء مقدار» تغییرناپذیر می‌سازد، مثل مبلغ پول.</li>
+        <li>برای فهرست پیش‌فرض همیشه <code>field(default_factory=list)</code>؛ هرگز <code>= []</code>.</li>
+        <li>در <code>__post_init__</code> داده را تمیز یا رد می‌کنیم.</li>
+    </ul>
+    <div class="note">
+        <span class="box-title">پل به فصل سوم</span>
+        <p>مدل‌های Pydantic تقریباً همین شکل را دارند. تفاوت اصلی این است که Pydantic داده رسیده از JSON را <strong>تبدیل و بررسی</strong> می‌کند، اما dataclass به هر چیزی که بگیرد اعتماد می‌کند.</p>
+    </div>
+
+    <h2 id="s6">۶. توابع مرتبه بالا و بستار</h2>
+    <p>تابع مرتبه بالا تابعی است که تابع می‌گیرد یا تابع برمی‌گرداند. FastAPI روی همین ایده ساخته شده است: شما تابعتان را به FastAPI می‌دهید و FastAPI هر وقت لازم شد صدایش می‌زند. <code>Depends(get_db)</code> هم یعنی «این تابع را صدا بزن و نتیجه‌اش را به من بده».</p>
+    <pre class="code"><code>def make_max_price_filter(max_price: int) -&gt; CoursePredicate:
+    &quot;&quot;&quot;Returns a NEW function that remembers `max_price` (a closure).&quot;&quot;&quot;
+
+    def predicate(course: Course) -&gt; bool:
+        return course.price &lt;= max_price
+
+    return predicate
+
+
+def make_level_filter(level: str) -&gt; CoursePredicate:
+    return lambda course: course.level == level
+
+
+def all_of(*predicates: CoursePredicate) -&gt; CoursePredicate:
+    &quot;&quot;&quot;Combine many filters into one -- this is how search filters are built.&quot;&quot;&quot;
+    return lambda course: all(predicate(course) for predicate in predicates)
+
+
+def apply_discount(percent: int, price: int) -&gt; int:
+    return price * (100 - percent) // 100</code></pre>
+    <p class="code-caption">ساختن فیلتر با بستار: نمونه <bdi dir="ltr">05_higher_order_functions/app.py</bdi></p>
+    <p><code>make_max_price_filter(2_600_000)</code> یک تابع <strong>تازه</strong> برمی‌گرداند که <code>max_price</code> را به خاطر دارد؛ این یک <strong>بستار</strong> (closure) است. <code>all_of</code> چند فیلتر را به یکی تبدیل می‌کند: همان کاری که بعدها برای جست‌وجوی دوره‌ها با شرط‌های اختیاری انجام می‌دهیم. در فصل دهم، <code>require_roles(&#x27;admin&#x27;)</code> دقیقاً همین شکل را دارد.</p>
+
+    <h2 id="s7">۷. دکوراتور، درست نوشته‌شده</h2>
+    <p><code>@log_calls</code> بالای یک تابع یعنی <code>enroll = log_calls(enroll)</code>. سه چیز در هر دکوراتور این دوره رعایت می‌شود:</p>
+    <ol>
+        <li><code>@functools.wraps(func)</code> نام و مستند تابع اصلی را نگه می‌دارد. FastAPI <strong>امضای</strong> توابع شما را می‌خواند؛ دکوراتوری که امضا را پنهان کند، FastAPI را خراب می‌کند.</li>
+        <li><code>ParamSpec</code> با نحو <code>[**P, R]</code> نوع پارامترها را نگه می‌دارد، پس ویرایشگر هنوز می‌داند <code>enroll</code> دو عدد صحیح می‌گیرد.</li>
+        <li>استثناها دوباره پرتاب می‌شوند و هرگز بلعیده نمی‌شوند.</li>
+    </ol>
+    <pre class="code"><code>def log_calls[**P, R](func: Callable[P, R]) -&gt; Callable[P, R]:
+    @functools.wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -&gt; R:
+        logger.info(&#x27;-&gt; %s%s&#x27;, func.__name__, args)
+        try:
+            result = func(*args, **kwargs)
+        except Exception as error:
+            logger.warning(&#x27;&lt;- %s raised %r&#x27;, func.__name__, error)
+            raise
+        logger.info(&#x27;&lt;- %s returned %r&#x27;, func.__name__, result)
+        return result
+
+    return wrapper</code></pre>
+    <p class="code-caption">دکوراتور ثبت فراخوانی‌ها: نمونه <bdi dir="ltr">06_decorators/app.py</bdi></p>
+    <p><strong>کارخانه دکوراتور</strong> آرگومان می‌گیرد و خودش دکوراتور برمی‌گرداند: <code>@retry(times=3)</code>.</p>
+    <pre class="code"><code>def retry[**P, R](times: int) -&gt; Callable[[Callable[P, R]], Callable[P, R]]:
+    &quot;&quot;&quot;A decorator factory: `@retry(3)` returns the real decorator.&quot;&quot;&quot;
+
+    def decorator(func: Callable[P, R]) -&gt; Callable[P, R]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -&gt; R:
+            for attempt in range(1, times + 1):
+                try:
+                    return func(*args, **kwargs)
+                except ConnectionError:
+                    if attempt == times:
+                        raise
+                    logger.info(&#x27;attempt %d failed, retrying&#x27;, attempt)
+            raise AssertionError(&#x27;unreachable&#x27;)
+
+        return wrapper
+
+    return decorator</code></pre>
+    <p class="code-caption">کارخانه دکوراتور: نمونه <bdi dir="ltr">06_decorators/app.py</bdi></p>
+
+    <h2 id="s8">۸. استثناهای سفارشی: خطاها به زبان کسب‌وکار</h2>
+    <p>یک سرویس هرگز با برگرداندن <code>None</code> یا <code>-1</code> یا رشته <code>&quot;error&quot;</code> نمی‌گوید که کار خراب شد. استثنایی پرتاب می‌کند که دقیقاً می‌گوید <strong>چه چیزی</strong> خراب شد. سلسله‌مراتب زیر در فصل چهارم به کدهای وضعیت HTTP وصل می‌شود.</p>
+    <pre class="code"><code>class TrainingCenterError(Exception):
+    &quot;&quot;&quot;Base class of all our expected errors.&quot;&quot;&quot;
+
+    status_code = 400
+
+
+class NotFoundError(TrainingCenterError):
+    status_code = 404
+
+    def __init__(self, entity: str, entity_id: int) -&gt; None:
+        super().__init__(f&#x27;{entity} {entity_id} was not found&#x27;)
+        self.entity = entity
+        self.entity_id = entity_id
+
+
+class ConflictError(TrainingCenterError):
+    status_code = 409
+
+
+class PermissionDeniedError(TrainingCenterError):
+    status_code = 403</code></pre>
+    <p class="code-caption">سلسله‌مراتب خطاها: نمونه <bdi dir="ltr">07_custom_exceptions/app.py</bdi></p>
+    <pre class="code"><code>def get_course(course_id: int) -&gt; Course:
+    try:
+        return COURSES[course_id]
+    except KeyError:
+        # The KeyError is an implementation detail: hide it.
+        raise NotFoundError(&#x27;Course&#x27;, course_id) from None
+
+
+def enroll(student_id: int, course_id: int) -&gt; None:
+    course = get_course(course_id)
+    if student_id in course.students:
+        raise ConflictError(f&#x27;student {student_id} is already enrolled&#x27;)
+    if len(course.students) &gt;= course.capacity:
+        raise ConflictError(f&#x27;course {course.title!r} is full&#x27;)
+    course.students.add(student_id)
+
+
+def load_price(text: str) -&gt; int:
+    try:
+        return int(text)
+    except ValueError as error:
+        # Keep the cause: the traceback will show both errors.
+        raise TrainingCenterError(f&#x27;invalid price {text!r}&#x27;) from error</code></pre>
+    <p class="code-caption">پرتاب خطای مناسب: نمونه <bdi dir="ltr">07_custom_exceptions/app.py</bdi></p>
+    <ul>
+        <li><code>raise ... from None</code> علت درونی بی‌ربط (اینجا <code>KeyError</code>) را پنهان می‌کند.</li>
+        <li><code>raise ... from error</code> علت اصلی را در ردیابی نگه می‌دارد.</li>
+        <li>هیچ‌جای این کد از HTTP خبر ندارد. این <strong>جداسازی دغدغه‌ها</strong> است و در فصل چهارم ارزشش را می‌بینیم.</li>
+    </ul>
+
+    <h2 id="s9">۹. مدیر زمینه: همیشه پاک‌سازی کن</h2>
+    <p>الگوی «آماده کن، کار را انجام بده، همیشه پاک‌سازی کن» همه‌جای بک‌اند دیده می‌شود: <code>with Session(engine)</code> در فصل پنجم، <code>async with httpx.AsyncClient()</code> در فصل پانزدهم، وابستگی‌های <code>yield</code> در فصل چهارم و lifespan در فصل دوازدهم. در این مثال یک «تراکنش» کوچک می‌سازیم: تغییرات فقط وقتی می‌مانند که بلوک بدون خطا تمام شود.</p>
+    <pre class="code"><code>@contextmanager
+def transaction(db: dict[str, list[str]]) -&gt; Iterator[dict[str, list[str]]]:
+    &quot;&quot;&quot;Generator-based context manager: everything before `yield` is __enter__.&quot;&quot;&quot;
+    snapshot = copy.deepcopy(db)
+    print(&#x27;BEGIN&#x27;)
+    try:
+        yield db
+    except Exception:
+        db.clear()
+        db.update(snapshot)
+        print(&#x27;ROLLBACK&#x27;)
+        raise
+    else:
+        print(&#x27;COMMIT&#x27;)</code></pre>
+    <p class="code-caption">تراکنش با @contextmanager: نمونه <bdi dir="ltr">08_context_managers/app.py</bdi></p>
+    <pre class="out">BEGIN
+COMMIT
+{&#x27;students&#x27;: [&#x27;sara&#x27;, &#x27;reza&#x27;]}
+BEGIN
+ROLLBACK
+error: payment failed half way
+{&#x27;students&#x27;: [&#x27;sara&#x27;, &#x27;reza&#x27;]}</pre>
+
+    <h2 id="s10">۱۰. مولدها: یکی‌یکی، فقط وقتی لازم است</h2>
+    <p>تابعی که <code>yield</code> دارد، به جای ساختن کل فهرست در حافظه، مقدارها را یکی‌یکی تحویل می‌دهد. در این مثال صفحه‌بندی یک منبع داده را از چشم فراخواننده پنهان می‌کنیم. در فصل چهاردهم کلاینت ما دقیقاً همین کار را با صفحه‌های API انجام می‌دهد.</p>
+    <pre class="code"><code>def fetch_page(page: int, size: int) -&gt; list[int]:
+    &quot;&quot;&quot;Pretend to be an API: returns one page of ids (empty at the end).&quot;&quot;&quot;
+    start = (page - 1) * size
+    print(f&#x27;  ...fetching page {page}&#x27;)
+    return ALL_COURSE_IDS[start : start + size]
+
+
+def iterate_all(size: int = 10) -&gt; Iterator[int]:
+    &quot;&quot;&quot;Hide pagination from the caller: they just see a stream of ids.&quot;&quot;&quot;
+    page = 1
+    while items := fetch_page(page, size):
+        yield from items
+        page += 1</code></pre>
+    <p class="code-caption">پنهان کردن صفحه‌بندی: نمونه <bdi dir="ltr">09_generators/app.py</bdi></p>
+
+    <h2 id="s11">۱۱. async و await: منتظر ماندن هم‌زمان</h2>
+    <p>یک بک‌اند بیشتر وقتش <strong>منتظر</strong> است: منتظر پایگاه داده، منتظر یک API دیگر، منتظر یک فایل. <code>asyncio.gather</code> چند انتظار را هم‌زمان پیش می‌برد، به شرط اینکه هیچ‌کدام <strong>مسدودکننده</strong> نباشد.</p>
+    <pre class="code"><code>async def fetch_seats(course_id: int) -&gt; int:
+    &quot;&quot;&quot;Pretend network call that takes 0.5 s.&quot;&quot;&quot;
+    await asyncio.sleep(0.5)
+    return 10 + course_id
+
+
+async def sequential(ids: list[int]) -&gt; list[int]:
+    return [await fetch_seats(course_id) for course_id in ids]
+
+
+async def concurrent(ids: list[int]) -&gt; list[int]:
+    return list(await asyncio.gather(*(fetch_seats(course_id) for course_id in ids)))
+
+
+async def blocking_mistake(ids: list[int]) -&gt; None:
+    &quot;&quot;&quot;time.sleep() inside async code: gather cannot help, the loop is frozen.&quot;&quot;&quot;
+
+    async def bad(course_id: int) -&gt; None:
+        time.sleep(0.5)  # WRONG inside async def
+
+    await asyncio.gather(*(bad(course_id) for course_id in ids))</code></pre>
+    <p class="code-caption">ترتیبی، هم‌زمان و اشتباه رایج: نمونه <bdi dir="ltr">10_async_await/app.py</bdi></p>
+    <pre class="out">sequential  2.00s  [11, 12, 13, 14]
+concurrent  0.50s  [11, 12, 13, 14]
+blocking    2.00s  (gather did not help!)
+gave up after 0.2 s</pre>
+    <div class="warn">
+        <span class="box-title">قانون طلایی</span>
+        <p>درون <code>async def</code> هرگز چیزی را صدا نزنید که مسدود می‌کند: <code>time.sleep()</code>، کتابخانه <code>requests</code> یا یک درایور پایگاه داده غیرناهمگام. کل سرور منجمد می‌شود. فصل دوازدهم تمام این موضوع است.</p>
+    </div>
+
+    <h2 id="s12">۱۲. HTTP، REST و JSON</h2>
+    <p>در مدل <strong>کلاینت و سرور</strong>، کلاینت یک <strong>درخواست</strong> می‌فرستد و سرور یک <strong>پاسخ</strong> برمی‌گرداند. هر درخواست یک <strong>روش</strong>، یک <strong>نشانی</strong>، چند <strong>هدر</strong> و گاهی یک <strong>بدنه</strong> دارد. هر پاسخ یک <strong>کد وضعیت</strong>، چند هدر و یک بدنه دارد.</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>کد</th><th>معنی</th><th>مثال در پروژه</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>۲۰۰</td><td>انجام شد</td><td>فهرست دوره‌ها</td></tr>
+                <tr><td>۲۰۱</td><td>ساخته شد</td><td>ثبت دوره تازه</td></tr>
+                <tr><td>۲۰۴</td><td>انجام شد، چیزی برای فرستادن نیست</td><td>حذف دوره</td></tr>
+                <tr><td>۴۰۰</td><td>درخواست بی‌معنی است</td><td>مدرس انتخاب‌شده دانشجوست</td></tr>
+                <tr><td>۴۰۱</td><td>نمی‌دانم کیستی</td><td>توکن نفرستاده‌اید</td></tr>
+                <tr><td>۴۰۳</td><td>می‌دانم کیستی، اجازه نداری</td><td>دانشجو می‌خواهد دوره بسازد</td></tr>
+                <tr><td>۴۰۴</td><td>وجود ندارد</td><td>دوره شماره ۹۹۹</td></tr>
+                <tr><td>۴۰۹</td><td>با داده موجود تداخل دارد</td><td>ایمیل تکراری، دوره پر</td></tr>
+                <tr><td>۴۲۲</td><td>داده نامعتبر است</td><td>قیمت منفی</td></tr>
+                <tr><td>۵۰۰</td><td>سرور خراب است</td><td>باگ در کد ما</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p><strong>REST</strong> یعنی منابع (اسم‌ها) در نشانی و عمل در روش: <code>GET /courses</code> فهرست، <code>POST /courses</code> ساختن، <code>GET /courses/1</code> یکی، <code>PUT</code> جایگزین کردن کامل، <code>PATCH</code> تغییر بخشی و <code>DELETE</code> حذف. <strong>JSON</strong> قالب متنی بدنه است.</p>
+    <pre class="code"><code>def main() -&gt; None:
+    # JSON is just text:
+    text = json.dumps({&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000, &#x27;tags&#x27;: [&#x27;web&#x27;]})
+    print(text, &#x27;-&gt;&#x27;, json.loads(text)[&#x27;price&#x27;])
+
+    # One Client = one connection pool, reused for every request.
+    with httpx.Client(base_url=BASE_URL, timeout=5.0) as client:
+        response = client.get(&#x27;/posts&#x27;, params={&#x27;userId&#x27;: 1})
+        print(response.request.method, response.request.url)
+        print(response.status_code, response.headers[&#x27;content-type&#x27;])
+        posts = [Post.from_json(item) for item in response.json()]
+        print(f&#x27;{len(posts)} posts, first: {posts[0].title!r}&#x27;)
+
+        created = client.post(&#x27;/posts&#x27;, json={&#x27;title&#x27;: &#x27;Hello&#x27;, &#x27;body&#x27;: &#x27;...&#x27;, &#x27;userId&#x27;: 1})
+        print(&#x27;POST -&gt;&#x27;, created.status_code, created.json())
+
+        missing = client.get(&#x27;/posts/999999&#x27;)
+        print(&#x27;GET missing -&gt;&#x27;, missing.status_code)
+
+        try:
+            missing.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            print(&#x27;raise_for_status():&#x27;, error.response.status_code)
+
+    try:
+        httpx.get(f&#x27;{BASE_URL}/posts&#x27;, timeout=0.001)
+    except httpx.TimeoutException:
+        print(&#x27;timeout: never wait for ever&#x27;)</code></pre>
+    <p class="code-caption">اولین کلاینت با HTTPX: نمونه <bdi dir="ltr">11_http_and_json/app.py</bdi></p>
+
+    <h2 id="s13">۱۳. Bruno: اولین درخواست‌ها</h2>
+    <p>پوشه <code>13_bruno_first_requests</code> یک مجموعه Bruno است. آن را با <strong>Open Collection</strong> باز کنید، محیط <strong>public</strong> را انتخاب کنید و هر چهار درخواست را اجرا کنید: یک <code>GET</code> با پارامتر پرس‌وجو، یک <code>GET</code> تکی، یک <code>POST</code> با بدنه JSON و یک <code>GET</code> که ۴۰۴ می‌گیرد.</p>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>در Bruno یک درخواست <code>PATCH</code> برای <code>/posts/1</code> و یک <code>DELETE</code> بسازید. کد وضعیت هر کدام را یادداشت کنید. بعد در زبانه <strong>Tests</strong> یک بررسی بنویسید که <code>res.status</code> برابر ۲۰۰ باشد.</p>
+    </div>
+
+    <h2 id="s14">۱۴. بازنویسی یک کد بد</h2>
+    <p>فایل <code>12_refactor_me/app.py</code> کار می‌کند و گزارش درستی چاپ می‌کند. همین خطرناک است: «کار می‌کند» با «خوب است» فرق دارد. نبود راهنمای نوع، دیکشنری‌های جادویی با کلیدهای <code>&#x27;t&#x27;</code> و <code>&#x27;p&#x27;</code>، متغیر سراسری، <code>except:</code> خالی، آرگومان پیش‌فرض تغییرپذیر و پول اعشاری، همه در آن هست. تمرین ۱۲ از شما می‌خواهد آن را بدون تغییر خروجی بازنویسی کنید.</p>
+
+    <h2 id="s15">۱۵. پروژه: هسته آموزشگاه با پایتون خالص</h2>
+    <p>پروژه‌ای که شانزده جلسه با ما همراه است امروز بدون هیچ چارچوبی شروع می‌شود: مدل‌ها با dataclass، یک مخزن جنریک، یک سرویس با قواعد کسب‌وکار و استثناهای سفارشی.</p>
+    <pre class="code"><code>    def enroll(self, student_id: int, course_id: int) -&gt; Course:
+        student = self.users.get(student_id)
+        course = self.courses.get(course_id)
+        if student.role is not Role.STUDENT or not student.is_active:
+            raise PermissionDeniedError(&#x27;only active students can enroll&#x27;)
+        if student.id in course.student_ids:
+            raise AlreadyEnrolledError(f&#x27;user {student.id} is already in course {course.id}&#x27;)
+        if course.is_full:
+            raise CourseFullError(f&#x27;course {course.id} is full&#x27;)
+        course.student_ids.add(student.id)
+        return course</code></pre>
+    <p class="code-caption">قاعده ثبت‌نام: <bdi dir="ltr">14_project/training_center/services.py</bdi></p>
+    <p>سرویس از <strong>ترکیب</strong> (composition) استفاده می‌کند: دو مخزن را در خودش دارد و از آنها ارث نمی‌برد. در فصل دوم همین قواعد پشت endpointها می‌روند و در فصل پنجم دیکشنری درون مخزن جایش را به پایگاه داده می‌دهد؛ اما قواعد و استثناها همین می‌مانند.</p>
+    <pre class="out">refused -&gt; CourseFullError: course 2 is full
+refused -&gt; AlreadyEnrolledError: user 2 is already in course 1
+refused -&gt; NotFoundError: Course 99 not found
+refused -&gt; PermissionDeniedError: only instructors can create courses
+rolled back: still 3 users</pre>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S01-python-refresh-and-rest</code> چهارده پوشه دارد. نمونه‌های ۰۱ تا ۱۲ را با <code>python app.py</code> اجرا کنید. نمونه ۱۱ به اینترنت نیاز دارد. پروژه را با <code>cd 14_project</code> و <code>python main.py</code> اجرا کنید. پیش از همه، <code>pip install -r requirements.txt</code> را بزنید.</p>
+    </div>
+
+    <h2 id="s16">۱۶. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>list[str]</code>، <code>str | None</code>، <code>Literal</code></td><td>نوع‌های امروزی که FastAPI می‌خواند</td></tr>
+                <tr><td><code>Annotated[T, rule]</code></td><td>چسباندن قاعده به نوع</td></tr>
+                <tr><td><code>class Repository[T: HasId]</code></td><td>یک کلاس برای همه نوع‌ها</td></tr>
+                <tr><td><code>@dataclass(slots=True, frozen=True)</code></td><td>مدل داده تایپ‌دار</td></tr>
+                <tr><td>بستار و <code>partial</code></td><td>ساختن تابع از تابع</td></tr>
+                <tr><td><code>functools.wraps</code> و <code>ParamSpec</code></td><td>دکوراتوری که امضا را نگه می‌دارد</td></tr>
+                <tr><td>سلسله‌مراتب استثنا</td><td>خطا به زبان کسب‌وکار</td></tr>
+                <tr><td><code>@contextmanager</code></td><td>همیشه پاک‌سازی کن</td></tr>
+                <tr><td><code>yield</code></td><td>داده یکی‌یکی و فقط هنگام نیاز</td></tr>
+                <tr><td><code>asyncio.gather</code></td><td>انتظارهای هم‌زمان</td></tr>
+                <tr><td>کدهای وضعیت HTTP</td><td>معنای هر پاسخ</td></tr>
+                <tr><td>Bruno</td><td>فرستادن و آزمودن درخواست</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_type_hints</code> تابع <code>cheapest(prices: dict[str, int]) -&gt; str | None</code> را بنویسید و با <code>mypy app.py</code> بررسی کنید.</li>
+            <li>در <code>02_annotated</code> قاعده‌ای به نام <code>Pattern</code> بسازید و نوع <code>Email</code> را با آن تعریف کنید.</li>
+            <li>به <code>Repository</code> در <code>03_generics</code> متد <code>update(item_id, **changes)</code> اضافه کنید. برای شناسه ناموجود و نام فیلد ناموجود چه باید بکند؟</li>
+            <li>دکوراتور <code>@require_role(&#x27;admin&#x27;)</code> بنویسید که اولین آرگومان تابع را یک <code>User</code> فرض کند و اگر نقشش درست نبود <code>PermissionError</code> بدهد.</li>
+            <li>به <code>07_custom_exceptions</code> خطای <code>CourseClosedError</code> اضافه کنید. چه کد وضعیتی به آن می‌دهید و چرا ۴۰۴ نه؟</li>
+            <li>فایل <code>12_refactor_me/app.py</code> را بدون تغییر خروجی بازنویسی کنید.</li>
+            <li>در <code>10_async_await</code> صندلی‌های بیست دوره را بگیرید، اما هیچ‌وقت بیش از پنج درخواست هم‌زمان نداشته باشید (<code>asyncio.Semaphore</code>).</li>
+            <li>به سرویس پروژه متد <code>unenroll(student_id, course_id)</code> اضافه کنید که برای دانشجوی ثبت‌نام‌نکرده <code>NotFoundError</code> بدهد.</li>
+            <li><strong>تکلیف:</strong> با HTTPX همه کاربران و کارهای jsonplaceholder را بگیرید و برای هر کاربر درصد کارهای تمام‌شده را، از بیشترین به کمترین، چاپ کنید. dataclass، راهنمای نوع کامل، مهلت زمانی و یک استثنای سفارشی برای خطای شبکه الزامی است.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-00.html">فصل قبل: مقدمه: آماده‌سازی محیط کار</a>
+        <a href="chapter-02.html">فصل بعد: قدم‌های اول FastAPI</a>
+    </div>
+
+</main>
+
+</body>
+</html>

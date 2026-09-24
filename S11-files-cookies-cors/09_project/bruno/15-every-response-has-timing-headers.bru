@@ -1,0 +1,18 @@
+meta {
+  name: Every response has timing headers
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{baseUrl}}/courses
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.headers["x-process-time"]).to.match(/ms$/);
+  });
+}

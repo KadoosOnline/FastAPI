@@ -1,0 +1,21 @@
+meta {
+  name: Delete teacher who teaches (409)
+  type: http
+  seq: 14
+}
+
+delete {
+  url: {{baseUrl}}/users/2
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+tests {
+  test("status is 409", function() {
+    expect(res.status).to.equal(409);
+  });
+}

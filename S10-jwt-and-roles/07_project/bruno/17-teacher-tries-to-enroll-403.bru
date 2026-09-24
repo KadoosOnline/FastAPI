@@ -1,0 +1,21 @@
+meta {
+  name: Teacher tries to enroll (403)
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{baseUrl}}/courses/{{courseId}}/enrollments
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

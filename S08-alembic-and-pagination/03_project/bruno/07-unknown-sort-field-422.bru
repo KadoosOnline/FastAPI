@@ -1,0 +1,17 @@
+meta {
+  name: Unknown sort field (422)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/courses?sort=popularity
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

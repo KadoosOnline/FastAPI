@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "Session 01 - First requests",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

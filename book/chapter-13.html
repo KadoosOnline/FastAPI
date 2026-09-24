@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل سیزده: آزمون خودکار API با pytest. pytest، assert و parametrize و fixture، TestClient، dependency_overrides، آزمون ناهمگام، پایگاه داده آزمون، کارخانه‌ها، آزمون شکست">
+    <title>فصل ۱۳: آزمون خودکار API با pytest</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۳</span>
+        <h1>آزمون خودکار API با pytest</h1>
+        <p class="lead">Bruno وقتی شما کلیک می‌کنید API را بررسی می‌کند. آزمون خودکار هر بار که چیزی تغییر کند بررسی می‌کند. pytest را با assertion و parametrize و fixture یاد می‌گیریم، TestClient خود FastAPI را، آزمون ناهمگام با httpx.AsyncClient را و جایگزینی وابستگی‌ها که پایگاه داده و کاربر جاری را با نسخه آزمونی عوض می‌کند. بعد برای پروژه آموزشگاه یک مجموعه آزمون واقعی می‌نویسیم که دست‌کم به اندازه حالت‌های موفق، حالت‌های <strong>شکست</strong> را بیازماید.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">چه چیزی را آزمون کنیم</a></li>
+            <li><a href="#s2">pytest، ساده</a></li>
+            <li><a href="#s3">TestClient</a></li>
+            <li><a href="#s4">جایگزینی وابستگی‌ها</a></li>
+            <li><a href="#s5">آزمون ناهمگام با HTTPX</a></li>
+            <li><a href="#s6">پروژه: پنجاه و یک آزمون</a></li>
+            <li><a href="#s7">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. چه چیزی را آزمون کنیم</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>نوع آزمون</th><th>چه چیزی را می‌آزماید</th><th>مثال در پروژه</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>آزمون واحد</td><td>یک تابع، بدون HTTP و پایگاه داده</td><td>درهم‌ساز رمز، توکن، طرح‌واره</td></tr>
+                <tr><td>آزمون API</td><td>یک درخواست کامل تا پایگاه داده</td><td>ثبت‌نام، ورود، دوره پر</td></tr>
+                <tr><td>آزمون دستی</td><td>کلیک در Bruno</td><td>کاوش و اشکال‌زدایی</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>هر آزمون سه بخش دارد: <strong>آماده‌سازی</strong>، <strong>اجرا</strong> و <strong>بررسی</strong>. و قاعده این فصل: حالت‌های ناموفق به همان اندازه مهم‌اند. ورودی بد باید دقیقاً همان‌طور که قول داده‌ایم شکست بخورد.</p>
+
+    <h2 id="s2">۲. pytest، ساده</h2>
+    <pre class="code"><code>import pytest
+
+from pricing import PricingError, apply_discount, installments
+
+
+def test_discount_reduces_the_price() -&gt; None:
+    assert apply_discount(1_000_000, 10) == 900_000
+
+
+def test_no_discount_keeps_the_price() -&gt; None:
+    assert apply_discount(1_000_000, 0) == 1_000_000
+
+
+@pytest.mark.parametrize(
+    (&#x27;price&#x27;, &#x27;percent&#x27;, &#x27;expected&#x27;),
+    [
+        (100, 50, 50),
+        (99, 50, 49),  # rounded down
+        (4_800_000, 100, 0),
+    ],
+)
+def test_discount_table(price: int, percent: int, expected: int) -&gt; None:
+    assert apply_discount(price, percent) == expected
+
+
+@pytest.mark.parametrize(&#x27;percent&#x27;, [-1, 101, 1000])
+def test_invalid_discount_is_rejected(percent: int) -&gt; None:
+    with pytest.raises(PricingError, match=&#x27;between 0 and 100&#x27;):
+        apply_discount(1000, percent)
+
+
+def test_installments_add_up_to_the_total() -&gt; None:
+    parts = installments(1_000_000, 3)
+
+    assert sum(parts) == 1_000_000
+    assert parts == [333_334, 333_333, 333_333]
+
+
+@pytest.fixture
+def big_price() -&gt; int:
+    &quot;&quot;&quot;A fixture: reusable test data, created fresh for every test that asks for it.&quot;&quot;&quot;
+    return 12_345_678
+
+
+def test_installments_with_fixture(big_price: int) -&gt; None:
+    assert len(installments(big_price, 12)) == 12
+
+
+def test_zero_installments_fail() -&gt; None:
+    with pytest.raises(PricingError):
+        installments(100, 0)</code></pre>
+    <p class="code-caption">assert، parametrize، raises و fixture: <bdi dir="ltr">01_pytest_basics/test_pricing.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>فرمان</th><th>کار</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>pytest</code></td><td>همه فایل‌های <code>test_*.py</code> را پیدا و اجرا کن</td></tr>
+                <tr><td><code>pytest -v</code></td><td>یک خط برای هر آزمون</td></tr>
+                <tr><td><code>pytest -k discount</code></td><td>فقط آزمون‌هایی که نامشان «discount» دارد</td></tr>
+                <tr><td><code>pytest -x</code></td><td>در اولین شکست متوقف شو</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s3">۳. TestClient</h2>
+    <p><code>TestClient(app)</code> درخواست‌های واقعی HTTP را <strong>درون همین فرایند</strong> به برنامه می‌فرستد: بدون سرور و بدون شبکه. همان رابط کلاینت HTTPX را دارد:</p>
+    <pre class="code"><code>import pytest
+from fastapi.testclient import TestClient
+
+from app import COURSES, app
+
+
+@pytest.fixture
+def client() -&gt; TestClient:
+    COURSES.clear()  # every test starts with an empty &quot;database&quot;
+    return TestClient(app)
+
+
+def test_create_course(client: TestClient) -&gt; None:
+    response = client.post(&#x27;/courses&#x27;, json={&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000})
+
+    assert response.status_code == 201
+    assert response.json() == {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000}
+
+
+def test_read_back_what_was_created(client: TestClient) -&gt; None:
+    created = client.post(&#x27;/courses&#x27;, json={&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 1}).json()
+
+    response = client.get(f&#x27;/courses/{created[&quot;id&quot;]}&#x27;)
+
+    assert response.status_code == 200
+    assert response.json()[&#x27;title&#x27;] == &#x27;FastAPI&#x27;
+
+
+def test_missing_course_is_404(client: TestClient) -&gt; None:
+    response = client.get(&#x27;/courses/999&#x27;)
+
+    assert response.status_code == 404
+    assert response.json() == {&#x27;detail&#x27;: &#x27;Course not found&#x27;}
+
+
+@pytest.mark.parametrize(
+    (&#x27;body&#x27;, &#x27;bad_field&#x27;),
+    [
+        ({&#x27;title&#x27;: &#x27;ab&#x27;, &#x27;price&#x27;: 1}, &#x27;title&#x27;),
+        ({&#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: -5}, &#x27;price&#x27;),
+        ({&#x27;title&#x27;: &#x27;FastAPI&#x27;}, &#x27;price&#x27;),
+    ],
+)
+def test_validation_errors(client: TestClient, body: dict, bad_field: str) -&gt; None:
+    response = client.post(&#x27;/courses&#x27;, json=body)
+
+    assert response.status_code == 422
+    assert response.json()[&#x27;detail&#x27;][0][&#x27;loc&#x27;] == [&#x27;body&#x27;, bad_field]
+
+
+def test_wrong_path_type_is_422(client: TestClient) -&gt; None:
+    assert client.get(&#x27;/courses/abc&#x27;).status_code == 422</code></pre>
+    <p class="code-caption">۲۰۱، ۴۰۴ و ۴۲۲: <bdi dir="ltr">02_testclient/test_app.py</bdi></p>
+    <div class="note">
+        <span class="box-title">ابزارهای آزمون FastAPI روی HTTPX ساخته شده‌اند</span>
+        <p><code>TestClient</code> همان رابط <code>httpx.Client</code> را دارد. Starlette نسخه ۱٫۷ برای آن <code>httpx2</code> را ترجیح می‌دهد، که نسخه ادامه‌یافته HTTPX است؛ بدون آن فقط یک هشدار می‌بینید. به همین دلیل <code>httpx2</code> در <code>requirements.txt</code> این جلسه آمده است.</p>
+    </div>
+
+    <h2 id="s4">۴. جایگزینی وابستگی‌ها</h2>
+    <pre class="code"><code>from collections.abc import Iterator
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import app, get_current_user, get_db
+
+
+class FakeDatabase:
+    def list_courses(self) -&gt; list[str]:
+        return [&#x27;Python&#x27;, &#x27;FastAPI&#x27;]
+
+
+@pytest.fixture
+def client() -&gt; Iterator[TestClient]:
+    app.dependency_overrides[get_db] = FakeDatabase
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+def login_as(role: str) -&gt; None:
+    app.dependency_overrides[get_current_user] = lambda: {&#x27;email&#x27;: f&#x27;{role}@x.com&#x27;, &#x27;role&#x27;: role}
+
+
+def test_student_sees_their_courses(client: TestClient) -&gt; None:
+    login_as(&#x27;student&#x27;)
+
+    response = client.get(&#x27;/my-courses&#x27;)
+
+    assert response.status_code == 200
+    assert response.json() == {&#x27;user&#x27;: &#x27;student@x.com&#x27;, &#x27;courses&#x27;: [&#x27;Python&#x27;, &#x27;FastAPI&#x27;]}
+
+
+def test_instructor_is_forbidden(client: TestClient) -&gt; None:
+    login_as(&#x27;instructor&#x27;)
+
+    assert client.get(&#x27;/my-courses&#x27;).status_code == 403
+
+
+def test_without_override_the_real_auth_runs(client: TestClient) -&gt; None:
+    assert client.get(&#x27;/my-courses&#x27;).status_code == 401</code></pre>
+    <p class="code-caption">پایگاه داده جعلی و کاربر جعلی: <bdi dir="ltr">03_dependency_overrides/test_app.py</bdi></p>
+    <p><code>app.dependency_overrides[get_db] = FakeDatabase</code> یعنی هر endpointی که به <code>get_db</code> وابسته است حالا نسخه جعلی را می‌گیرد. این همان سود تزریق وابستگی است: کد endpoint تغییر نمی‌کند، فقط چیزی که تزریق می‌کنیم عوض می‌شود. جایگزینی‌ها را <strong>همیشه</strong> بعد از آزمون پاک کنید؛ fixture با <code>yield</code> این را حتی وقتی آزمون شکست بخورد تضمین می‌کند.</p>
+
+    <h2 id="s5">۵. آزمون ناهمگام با HTTPX</h2>
+    <p>وقتی خود آزمون باید ناهمگام باشد، مثلاً برای await کردن کمک‌کننده‌های پایگاه داده یا فرستادن درخواست‌های هم‌زمان، <code>httpx.AsyncClient</code> را به برنامه وصل می‌کنیم:</p>
+    <pre class="code"><code>pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+def anyio_backend() -&gt; str:
+    return &#x27;asyncio&#x27;
+
+
+@pytest.fixture
+async def client() -&gt; AsyncIterator[httpx.AsyncClient]:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url=&#x27;http://test&#x27;) as async_client:
+        yield async_client
+
+
+async def test_one_request(client: httpx.AsyncClient) -&gt; None:
+    response = await client.get(&#x27;/courses/5/seats&#x27;)
+
+    assert response.status_code == 200
+    assert response.json() == {&#x27;course_id&#x27;: 5, &#x27;seats&#x27;: 15}
+
+
+async def test_many_requests_at_once(client: httpx.AsyncClient) -&gt; None:
+    responses = await asyncio.gather(*(client.get(f&#x27;/courses/{i}/seats&#x27;) for i in range(20)))
+
+    assert all(r.status_code == 200 for r in responses)
+    assert [r.json()[&#x27;seats&#x27;] for r in responses] == [10 + i for i in range(20)]
+
+
+async def test_a_coroutine_directly() -&gt; None:
+    assert await fetch_seats(1) == 11</code></pre>
+    <p class="code-caption">AsyncClient و ASGITransport: <bdi dir="ltr">04_async_tests/test_app.py</bdi></p>
+    <p><code>pytest.mark.anyio</code> آزمون را در یک حلقه رویداد اجرا می‌کند؛ افزونه AnyIO همراه FastAPI نصب می‌شود. <code>ASGITransport</code> چرخه lifespan را اجرا نمی‌کند، که در پروژه این را در نظر گرفته‌ایم.</p>
+
+    <h2 id="s6">۶. پروژه: پنجاه و یک آزمون</h2>
+    <pre class="code"><code>@pytest.fixture
+def settings(tmp_path: Path) -&gt; Settings:
+    return Settings(
+        database_url=f&#x27;sqlite+aiosqlite:///{tmp_path / &quot;test.db&quot;}&#x27;,
+        jwt_secret_key=&#x27;test-secret-key-that-is-long-enough-0123456789&#x27;,
+        upload_dir=tmp_path / &#x27;uploads&#x27;,
+        max_upload_mb=1,
+    )
+
+
+@pytest.fixture
+async def session_factory(settings: Settings) -&gt; AsyncIterator[async_sessionmaker[AsyncSession]]:
+    engine = create_async_engine(settings.database_url)
+
+    @event.listens_for(engine.sync_engine, &#x27;connect&#x27;)
+    def foreign_keys_on(connection, _record) -&gt; None:  # type: ignore[no-untyped-def]
+        connection.cursor().execute(&#x27;PRAGMA foreign_keys=ON&#x27;)
+
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    yield async_sessionmaker(engine, expire_on_commit=False)
+    await engine.dispose()
+
+
+@pytest.fixture
+async def client(
+    settings: Settings, session_factory: async_sessionmaker[AsyncSession]
+) -&gt; AsyncIterator[httpx.AsyncClient]:
+    async def test_db() -&gt; AsyncIterator[AsyncSession]:
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = test_db
+    app.dependency_overrides[get_settings] = lambda: settings
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url=&#x27;http://test&#x27;) as async_client:
+        yield async_client
+    app.dependency_overrides.clear()</code></pre>
+    <p class="code-caption">پایگاه داده آزمون و جایگزینی وابستگی‌ها: <bdi dir="ltr">05_project/tests/conftest.py</bdi></p>
+    <p>هر آزمون این‌ها را می‌گیرد:</p>
+    <ul>
+        <li>یک فایل SQLite <strong>تازه</strong> در یک پوشه موقت؛ آزمون‌ها داده یکدیگر را نمی‌بینند و هرگز به <code>training.db</code> دست نمی‌زنند.</li>
+        <li><code>get_db</code> و <code>get_settings</code> جایگزین شده با نسخه آزمونی.</li>
+        <li>یک کلاینت ناهمگام HTTPX که درون فرایند با برنامه صحبت می‌کند.</li>
+        <li>کارخانه‌هایی برای ساختن کاربر و دوره مستقیم در پایگاه داده، و <code>auth(user)</code> که بدون صدا زدن <code>/auth/token</code> هدر مجوز می‌سازد.</li>
+    </ul>
+    <pre class="code"><code>async def test_enroll_many_is_all_or_nothing(
+    client: AsyncClient, make_user: UserFactory, make_course: CourseFactory, auth: Auth
+) -&gt; None:
+    teacher = await make_user(&#x27;instructor&#x27;)
+    open_course = await make_course(teacher, title=&#x27;Open&#x27;)
+    full_course = await make_course(teacher, title=&#x27;Full&#x27;, capacity=1)
+    await client.post(
+        f&#x27;/courses/{full_course.id}/enrollments&#x27;, headers=auth(await make_user(&#x27;student&#x27;))
+    )
+    student = await make_user(&#x27;student&#x27;)
+
+    response = await client.post(
+        &#x27;/users/me/enrollments&#x27;,
+        json={&#x27;course_ids&#x27;: [open_course.id, full_course.id]},
+        headers=auth(student),
+    )
+    mine = await client.get(&#x27;/users/me/enrollments&#x27;, headers=auth(student))
+
+    assert response.status_code == 409
+    assert mine.json() == []  # the first enrollment was rolled back</code></pre>
+    <p class="code-caption">آزمون «همه یا هیچ»: <bdi dir="ltr">05_project/tests/test_enrollments.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>فایل</th><th>آنچه می‌آزماید</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>test_auth.py</code></td><td>ثبت‌نام، ورود، همه شکست‌های ورود، <code>/users/me</code></td></tr>
+                <tr><td><code>test_courses.py</code></td><td>دیدن، مجوزهای ساختن و تغییر و حذف، ۴۲۲ها</td></tr>
+                <tr><td><code>test_enrollments.py</code></td><td>ثبت‌نام، دوره پر، لغو، همه یا هیچ، فهرست فقط برای مالک</td></tr>
+                <tr><td><code>test_materials.py</code></td><td>بررسی فایل، چه کسی می‌خواند، دانلود</td></tr>
+                <tr><td><code>test_units.py</code></td><td>رمز، توکن و طرح‌واره بدون HTTP</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <pre class="out">cd 05_project
+pytest
+...................................................                      [100%]
+51 passed in 5.27s</pre>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>کد را <strong>عمداً</strong> خراب کنید: <code>ensure_can_manage_course</code> را در <code>CourseService.update</code> کامنت کنید. کدام آزمون شکست می‌خورد؟ اگر هیچ‌کدام، آزمونی که کم است را بنویسید.</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S13-testing</code> پنج پوشه دارد. در هر کدام <code>pytest -v</code> بزنید. آزمون‌های پروژه به سرور و <code>training.db</code> نیازی ندارند.</p>
+    </div>
+
+    <h2 id="s7">۷. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>assert</code></td><td>بررسی نتیجه</td></tr>
+                <tr><td><code>pytest.raises(..., match=...)</code></td><td>انتظار یک استثنای مشخص</td></tr>
+                <tr><td><code>@pytest.mark.parametrize</code></td><td>یک آزمون، چند ورودی</td></tr>
+                <tr><td><code>@pytest.fixture</code> و <code>yield</code></td><td>داده و پاک‌سازی قابل استفاده دوباره</td></tr>
+                <tr><td><code>tmp_path</code></td><td>پوشه موقت برای هر آزمون</td></tr>
+                <tr><td><code>TestClient(app)</code></td><td>درخواست واقعی، درون فرایند</td></tr>
+                <tr><td><code>app.dependency_overrides[...]</code></td><td>جایگزینی پایگاه داده یا کاربر</td></tr>
+                <tr><td><code>pytest.mark.anyio</code> و <code>AsyncClient(transport=ASGITransport(app))</code></td><td>آزمون ناهمگام</td></tr>
+                <tr><td>کارخانه‌ها</td><td>ساختن سریع داده آزمون</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_pytest_basics</code> تابع <code>apply_coupon(price, code)</code> را بنویسید، اما آزمون‌هایش را <strong>اول</strong> بنویسید.</li>
+            <li>یک آزمون را عمداً خراب کنید و خروجی pytest را بخوانید. کدام خط مقدار واقعی و مورد انتظار را نشان می‌دهد؟</li>
+            <li>در <code>02_testclient</code> endpoint <code>DELETE /courses/{id}</code> بسازید و ۲۰۴ و بعد ۴۰۴ حذف دوم را بیازمایید.</li>
+            <li>در پروژه این آزمون‌های شکست را بنویسید: PUT با فیلد جاافتاده، ظرفیت کمتر از دانشجویان فعال، توکن قدیمی کاربر غیرفعال، <code>/users</code> برای مدرس، دانلود فایل دوره‌ای که در آن نیستید.</li>
+            <li>صفحه‌بندی را بیازمایید: با یک حلقه ۲۵ دوره بسازید و <code>total</code>، <code>pages</code> و اندازه صفحه آخر را بررسی کنید.</li>
+            <li><code>pytest-cov</code> را نصب کنید و <code>pytest --cov=app</code> بزنید. کدام توابع سرویس هرگز آزموده نشده‌اند؟</li>
+            <li><strong>تکلیف:</strong> برای کتابخانه یک مجموعه pytest با <code>conftest.py</code>، پایگاه داده آزمون، جایگزینی وابستگی‌ها و دست‌کم بیست آزمون بنویسید که نیمی از آنها حالت شکست باشند.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-12.html">فصل قبل: FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan</a>
+        <a href="chapter-14.html">فصل بعد: ساختن یک کلاینت REST پایتونی با HTTPX</a>
+    </div>
+
+</main>
+
+</body>
+</html>

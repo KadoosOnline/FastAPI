@@ -1,0 +1,21 @@
+meta {
+  name: Sara's old token is refused (403)
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{baseUrl}}/users/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 403", function() {
+    expect(res.status).to.equal(403);
+  });
+}

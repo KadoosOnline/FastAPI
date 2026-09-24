@@ -1,0 +1,18 @@
+meta {
+  name: Missing course - our error format (404)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/courses/999
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 404", function() {
+    expect(res.status).to.equal(404);
+    expect(res.body.code).to.equal("not_found");
+  });
+}

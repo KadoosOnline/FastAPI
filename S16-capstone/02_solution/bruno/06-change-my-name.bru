@@ -1,0 +1,27 @@
+meta {
+  name: Change my name
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/users/me
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+body:json {
+  {
+    "full_name": "Sara Ahmadi-Rad"
+  }
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

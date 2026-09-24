@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل یازده: هدر، کوکی، فرم، فایل و CORS. هدر و middleware، کوکی و پرچم‌هایش، فرم، UploadFile، بررسی نوع و بایت‌های جادویی و اندازه، فایل ایستا، CORS، انواع پاسخ">
+    <title>فصل ۱۱: هدر، کوکی، فرم، فایل و CORS</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۱</span>
+        <h1>هدر، کوکی، فرم، فایل و CORS</h1>
+        <p class="lead">قابلیت‌هایی که هر API واقعی دیر یا زود لازم دارد: خواندن و نوشتن هدر، کوکی و پرچم‌های امنیتی‌اش، داده فرم HTML، بارگذاری فایلی که به درستی بررسی شده باشد (نوع، محتوای واقعی و اندازه)، دانلود خصوصی، فایل ایستای عمومی، CORS برای کلاینت‌های مرورگری و انواع پاسخ به‌جز JSON. پروژه فایل‌های درسی می‌گیرد: مدرس بارگذاری می‌کند، دانشجوی ثبت‌نام‌شده دانلود می‌کند و هیچ‌کس دیگر نمی‌تواند.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">هدرها و middleware</a></li>
+            <li><a href="#s2">کوکی‌ها</a></li>
+            <li><a href="#s3">داده فرم</a></li>
+            <li><a href="#s4">بارگذاری فایل با UploadFile</a></li>
+            <li><a href="#s5">بررسی فایل: به هیچ چیز اعتماد نکنید</a></li>
+            <li><a href="#s6">فایل ایستا یا دانلود خصوصی؟</a></li>
+            <li><a href="#s7">CORS: آیا صفحه‌ای از مبدأ دیگر می‌تواند این API را صدا بزند؟</a></li>
+            <li><a href="#s8">انواع پاسخ</a></li>
+            <li><a href="#s9">پروژه: فایل‌های درسی</a></li>
+            <li><a href="#s10">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. هدرها و middleware</h2>
+    <pre class="code"><code>@app.middleware(&#x27;http&#x27;)
+async def add_timing_and_request_id(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -&gt; Response:
+    started = time.perf_counter()
+    request_id = request.headers.get(&#x27;x-request-id&#x27;) or uuid.uuid4().hex[:12]
+    response = await call_next(request)
+    response.headers[&#x27;X-Request-ID&#x27;] = request_id
+    response.headers[&#x27;X-Process-Time&#x27;] = f&#x27;{(time.perf_counter() - started) * 1000:.1f}ms&#x27;
+    return response
+
+
+GREETINGS = {&#x27;fa&#x27;: &#x27;Salam&#x27;, &#x27;en&#x27;: &#x27;Hello&#x27;, &#x27;de&#x27;: &#x27;Hallo&#x27;}
+
+
+@app.get(&#x27;/hello&#x27;)
+def hello(accept_language: Annotated[str | None, Header()] = None) -&gt; dict[str, str]:
+    language = (accept_language or &#x27;en&#x27;)[:2]
+    return {&#x27;greeting&#x27;: GREETINGS.get(language, GREETINGS[&#x27;en&#x27;]), &#x27;language&#x27;: language}
+
+
+@app.get(&#x27;/client&#x27;)
+def client_info(
+    user_agent: Annotated[str | None, Header()] = None,
+    x_forwarded_for: Annotated[str | None, Header()] = None,
+) -&gt; dict[str, str | None]:
+    return {&#x27;user_agent&#x27;: user_agent, &#x27;x_forwarded_for&#x27;: x_forwarded_for}
+
+
+@app.get(&#x27;/courses&#x27;)
+def courses(response: Response) -&gt; list[str]:
+    response.headers[&#x27;Cache-Control&#x27;] = &#x27;public, max-age=60&#x27;  # browsers may keep it 60 s
+    return [&#x27;Python&#x27;, &#x27;FastAPI&#x27;]</code></pre>
+    <p class="code-caption">خواندن هدر و یک middleware برای همه پاسخ‌ها: نمونه <bdi dir="ltr">01_headers/app.py</bdi></p>
+    <ul>
+        <li>هدرهای درخواست با <code>Header()</code> خوانده می‌شوند؛ <code>accept_language</code> یعنی هدر <code>Accept-Language</code>.</li>
+        <li>هدر پاسخ یک endpoint با پارامتر <code>response: Response</code> تنظیم می‌شود.</li>
+        <li>برای <strong>همه</strong> پاسخ‌ها یک <strong>middleware</strong> می‌نویسیم که دور هر درخواست اجرا می‌شود. هدرهای <code>X-Request-ID</code> (دنبال کردن یک درخواست در لاگ‌ها) و <code>X-Process-Time</code> نمونه‌های رایج‌اند.</li>
+    </ul>
+
+    <h2 id="s2">۲. کوکی‌ها</h2>
+    <pre class="code"><code>@app.get(&#x27;/courses/{course_id}&#x27;)
+def view_course(
+    course_id: int, response: Response, recent: Annotated[str | None, Cookie()] = None
+) -&gt; dict:
+    ids = [int(x) for x in recent.split(&#x27;-&#x27;) if x.isdigit()] if recent else []
+    ids = [course_id] + [x for x in ids if x != course_id]
+    response.set_cookie(
+        &#x27;recent&#x27;, &#x27;-&#x27;.join(map(str, ids[:3])), max_age=7 * 24 * 3600, httponly=True, samesite=&#x27;lax&#x27;
+    )
+    return {&#x27;course&#x27;: COURSES.get(course_id, &#x27;?&#x27;)}
+
+
+@app.get(&#x27;/recently-viewed&#x27;)
+def recently_viewed(recent: Annotated[str | None, Cookie()] = None) -&gt; list[str]:
+    if not recent:
+        return []
+    return [COURSES.get(int(x), &#x27;?&#x27;) for x in recent.split(&#x27;-&#x27;) if x.isdigit()]
+
+
+@app.delete(&#x27;/recently-viewed&#x27;)
+def forget(response: Response) -&gt; dict[str, str]:
+    response.delete_cookie(&#x27;recent&#x27;)
+    return {&#x27;status&#x27;: &#x27;forgotten&#x27;}</code></pre>
+    <p class="code-caption">«دوره‌های اخیراً دیده‌شده» در کوکی: نمونه <bdi dir="ltr">02_cookies/app.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>پرچم</th><th>کار</th><th>در برابر</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>httponly=True</code></td><td>جاوااسکریپت نمی‌تواند بخواند</td><td>دزدیده شدن با XSS</td></tr>
+                <tr><td><code>secure=True</code></td><td>فقط روی HTTPS فرستاده می‌شود</td><td>شنود</td></tr>
+                <tr><td><code>samesite=&#x27;lax&#x27;</code></td><td>با POSTهای میان‌سایتی فرستاده نمی‌شود</td><td>CSRF</td></tr>
+                <tr><td><code>max_age</code></td><td>ثانیه تا انقضا</td><td>ماندن بی‌پایان</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>مرورگرها کوکی را <strong>خودکار</strong> می‌فرستند؛ راحت است اما مراقبت در برابر CSRF لازم دارد. برنامه‌های موبایل و اسکریپت‌ها معمولاً توکن Bearer می‌فرستند.</p>
+
+    <h2 id="s3">۳. داده فرم</h2>
+    <p>فرم HTML به جای JSON این را می‌فرستد: <code>name=Sara&amp;email=...</code>. فیلدها را تکی با <code>Form()</code> یا یک مدل کامل Pydantic می‌خوانیم:</p>
+    <pre class="code"><code>class ContactForm(BaseModel):
+    name: str = Field(min_length=2)
+    email: EmailStr
+    message: str = Field(min_length=10, max_length=1000)
+    newsletter: bool = False
+
+
+@app.get(&#x27;/&#x27;, response_class=HTMLResponse)
+def page() -&gt; str:
+    return &quot;&quot;&quot;
+    &lt;form method=&quot;post&quot; action=&quot;/contact&quot;&gt;
+      &lt;input name=&quot;name&quot; placeholder=&quot;name&quot;&gt;&lt;br&gt;
+      &lt;input name=&quot;email&quot; placeholder=&quot;email&quot;&gt;&lt;br&gt;
+      &lt;textarea name=&quot;message&quot; placeholder=&quot;at least 10 characters&quot;&gt;&lt;/textarea&gt;&lt;br&gt;
+      &lt;label&gt;&lt;input type=&quot;checkbox&quot; name=&quot;newsletter&quot; value=&quot;true&quot;&gt; newsletter&lt;/label&gt;&lt;br&gt;
+      &lt;button&gt;Send&lt;/button&gt;
+    &lt;/form&gt;&quot;&quot;&quot;
+
+
+@app.post(&#x27;/contact&#x27;, status_code=201)
+def contact(data: Annotated[ContactForm, Form()]) -&gt; dict:
+    MESSAGES.append(data.model_dump())
+    return {&#x27;received&#x27;: data.model_dump(), &#x27;total_messages&#x27;: len(MESSAGES)}</code></pre>
+    <p class="code-caption">فرم HTML و یک مدل به عنوان فرم: نمونه <bdi dir="ltr">03_form_data/app.py</bdi></p>
+
+    <h2 id="s4">۴. بارگذاری فایل با UploadFile</h2>
+    <pre class="code"><code>@app.post(&#x27;/upload&#x27;)
+async def upload(file: UploadFile, title: Annotated[str, Form()] = &#x27;untitled&#x27;) -&gt; dict:
+    target = UPLOAD_DIR / Path(file.filename or &#x27;file&#x27;).name  # .name drops any folders
+    size = 0
+    with target.open(&#x27;wb&#x27;) as out:
+        while chunk := await file.read(64 * 1024):  # 64 KB at a time
+            size += len(chunk)
+            out.write(chunk)
+    return {
+        &#x27;title&#x27;: title,
+        &#x27;filename&#x27;: file.filename,
+        &#x27;content_type&#x27;: file.content_type,
+        &#x27;bytes&#x27;: size,
+        &#x27;saved_as&#x27;: str(target),
+    }
+
+
+@app.post(&#x27;/upload-many&#x27;)
+async def upload_many(
+    files: Annotated[list[UploadFile], File(description=&#x27;several files&#x27;)],
+) -&gt; list[dict]:
+    return [{&#x27;filename&#x27;: f.filename, &#x27;size&#x27;: f.size, &#x27;type&#x27;: f.content_type} for f in files]</code></pre>
+    <p class="code-caption">یک فایل، چند فایل، خواندن تکه‌به‌تکه: نمونه <bdi dir="ltr">04_file_upload/app.py</bdi></p>
+    <p><code>UploadFile</code> نام فایل، نوع محتوا، اندازه و متدهای ناهمگام <code>read</code> و <code>seek</code> را دارد. Starlette فایل‌های بزرگ را روی دیسک نگه می‌دارد، پس خواندن <strong>تکه‌به‌تکه</strong> حافظه را کم مصرف می‌کند. <code>Path(file.filename).name</code> پوشه‌ها را از نام حذف می‌کند و جلوی نامی مثل <code>../../etc/passwd</code> را می‌گیرد.</p>
+
+    <h2 id="s5">۵. بررسی فایل: به هیچ چیز اعتماد نکنید</h2>
+    <pre class="code"><code>UPLOAD_DIR = Path(&#x27;uploads&#x27;)
+UPLOAD_DIR.mkdir(exist_ok=True)
+MAX_BYTES = 1 * 1024 * 1024  # 1 MB for the demo
+ALLOWED = {
+    &#x27;application/pdf&#x27;: (&#x27;.pdf&#x27;, b&#x27;%PDF-&#x27;),
+    &#x27;image/png&#x27;: (&#x27;.png&#x27;, b&#x27;\x89PNG\r\n\x1a\n&#x27;),
+    &#x27;image/jpeg&#x27;: (&#x27;.jpg&#x27;, b&#x27;\xff\xd8\xff&#x27;),
+    &#x27;text/plain&#x27;: (&#x27;.txt&#x27;, None),
+}
+app = FastAPI()
+
+
+@app.post(&#x27;/materials&#x27;, status_code=status.HTTP_201_CREATED)
+async def upload_material(file: UploadFile) -&gt; dict:
+    if file.content_type not in ALLOWED:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=f&#x27;{file.content_type} not allowed&#x27;
+        )
+    extension, magic = ALLOWED[file.content_type]
+    if magic is not None:
+        head = await file.read(len(magic))
+        await file.seek(0)
+        if head != magic:
+            raise HTTPException(
+                status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=&#x27;Content does not match the type&#x27;
+            )
+
+    stored = UPLOAD_DIR / f&#x27;{uuid.uuid4().hex}{extension}&#x27;
+    size = 0
+    try:
+        with stored.open(&#x27;wb&#x27;) as out:
+            while chunk := await file.read(64 * 1024):
+                size += len(chunk)
+                if size &gt; MAX_BYTES:
+                    raise HTTPException(
+                        status.HTTP_413_CONTENT_TOO_LARGE, detail=&#x27;File is larger than 1 MB&#x27;
+                    )
+                out.write(chunk)
+    except BaseException:
+        stored.unlink(missing_ok=True)  # no half-written files left behind
+        raise
+    return {&#x27;original_name&#x27;: file.filename, &#x27;stored_as&#x27;: stored.name, &#x27;bytes&#x27;: size}</code></pre>
+    <p class="code-caption">نوع، بایت‌های جادویی و اندازه: نمونه <bdi dir="ltr">05_file_validation/app.py</bdi></p>
+    <ol>
+        <li><code>content_type</code> را <strong>کلاینت</strong> اعلام می‌کند و ممکن است دروغ بگوید؛ فهرست سفید نوع‌ها را بررسی کنید (۴۱۵).</li>
+        <li>پس اولین بایت‌ها را هم نگاه کنید: PDF با <code>%PDF-</code> شروع می‌شود، PNG با <code>\x89PNG</code> و JPEG با <code>\xff\xd8\xff</code>.</li>
+        <li>اندازه را <strong>هنگام خواندن</strong> محدود کنید و زود متوقف شوید (۴۱۳).</li>
+        <li>فایل را با نام ساخته‌شده (<code>uuid4</code>) ذخیره کنید، هرگز با نام کلاینت.</li>
+        <li>اگر وسط کار چیزی شکست خورد، فایل نیمه‌کاره را پاک کنید.</li>
+    </ol>
+    <pre class="out">05 ok.pdf   201 558b239b10d94afa91d54a551d92dff5.pdf
+05 fake.pdf 415 Content does not match the type
+05 v.exe    415 application/x-msdownload not allowed
+05 big.txt  413 File is larger than 1 MB</pre>
+
+    <h2 id="s6">۶. فایل ایستا یا دانلود خصوصی؟</h2>
+    <p><code>app.mount(&#x27;/static&#x27;, StaticFiles(directory=&#x27;static&#x27;))</code> یک پوشه کامل را همان‌طور که هست ارائه می‌کند: تصویر، CSS و PDFهای عمومی. اما <strong>عمومی</strong> است و احراز هویت ندارد. فایل‌های خصوصی، مثل جزوه‌هایی که فقط دانشجویان ثبت‌نام‌شده باید بخوانند، باید از یک endpoint بگذرند که مجوز را بررسی می‌کند و بعد یک <code>FileResponse</code> برمی‌گرداند. <code>filename=</code> هدر <code>Content-Disposition</code> را اضافه می‌کند تا مرورگر فایل را با نامی خوب دانلود کند.</p>
+
+    <h2 id="s7">۷. CORS: آیا صفحه‌ای از مبدأ دیگر می‌تواند این API را صدا بزند؟</h2>
+    <p>«مبدأ» یعنی طرح، میزبان و درگاه. <code>http://localhost:5500</code> و <code>http://127.0.0.1:8000</code> دو مبدأ متفاوت‌اند. مرورگر اجازه نمی‌دهد جاوااسکریپت پاسخ مبدأ دیگری را بخواند، <strong>مگر</strong> اینکه API برای آن مبدأ هدر <code>Access-Control-Allow-Origin</code> بفرستد. برای بعضی درخواست‌ها مرورگر اول یک درخواست <code>OPTIONS</code> «پیش‌پرواز» می‌فرستد.</p>
+    <pre class="code"><code>ALLOWED_ORIGINS = [&#x27;http://localhost:5500&#x27;, &#x27;http://127.0.0.1:5500&#x27;]
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,  # never [&#x27;*&#x27;] together with allow_credentials=True
+    allow_credentials=True,
+    allow_methods=[&#x27;GET&#x27;, &#x27;POST&#x27;, &#x27;PATCH&#x27;, &#x27;DELETE&#x27;],
+    allow_headers=[&#x27;Authorization&#x27;, &#x27;Content-Type&#x27;],
+)
+
+
+@app.get(&#x27;/courses&#x27;)
+def courses() -&gt; list[dict[str, str | int]]:
+    return [{&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;Python&#x27;}, {&#x27;id&#x27;: 2, &#x27;title&#x27;: &#x27;FastAPI&#x27;}]</code></pre>
+    <p class="code-caption">CORSMiddleware: نمونه <bdi dir="ltr">07_cors/app.py</bdi></p>
+    <div class="note">
+        <span class="box-title">CORS قاعده مرورگر است</span>
+        <p>curl، Bruno و کلاینت‌های پایتونی CORS را کاملاً نادیده می‌گیرند. به همین دلیل آزمون CORS با Bruno چیزی را ثابت نمی‌کند؛ آزمایش دوترمیناله توضیح‌داده‌شده در نمونه ۰۷ را انجام دهید.</p>
+    </div>
+
+    <h2 id="s8">۸. انواع پاسخ</h2>
+    <pre class="code"><code>@app.get(&#x27;/courses&#x27;, response_model_exclude_none=True)
+def list_courses() -&gt; list[Course]:
+    return [Course(**c) for c in COURSES]  # the null `note` disappears from the JSON
+
+
+@app.get(&#x27;/old-courses&#x27;)
+def old_address() -&gt; RedirectResponse:
+    return RedirectResponse(&#x27;/courses&#x27;, status_code=status.HTTP_308_PERMANENT_REDIRECT)
+
+
+@app.get(&#x27;/ping&#x27;, response_class=PlainTextResponse)
+def ping() -&gt; str:
+    return &#x27;pong&#x27;
+
+
+@app.post(&#x27;/reports&#x27;, status_code=status.HTTP_202_ACCEPTED)
+def start_report() -&gt; JSONResponse:
+    return JSONResponse({&#x27;status&#x27;: &#x27;queued&#x27;}, status_code=202, headers={&#x27;Location&#x27;: &#x27;/reports/42&#x27;})
+
+
+def csv_rows() -&gt; Iterator[str]:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([&#x27;id&#x27;, &#x27;title&#x27;, &#x27;price&#x27;])
+    for course in COURSES:
+        writer.writerow([course[&#x27;id&#x27;], course[&#x27;title&#x27;], course[&#x27;price&#x27;]])
+        yield buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate()
+    yield buffer.getvalue()
+
+
+@app.get(&#x27;/courses.csv&#x27;)
+def export_csv() -&gt; StreamingResponse:
+    return StreamingResponse(
+        csv_rows(),
+        media_type=&#x27;text/csv&#x27;,
+        headers={&#x27;Content-Disposition&#x27;: &#x27;attachment; filename=&quot;courses.csv&quot;&#x27;},
+    )</code></pre>
+    <p class="code-caption">تغییر مسیر، متن ساده، ۲۰۲ و CSV جریانی: نمونه <bdi dir="ltr">08_responses/app.py</bdi></p>
+    <p>خروجی CSV از یک <strong>مولد</strong> (فصل اول) جریان پیدا می‌کند؛ حتی یک جدول بسیار بزرگ لازم نیست کامل در حافظه جا شود.</p>
+
+    <h2 id="s9">۹. پروژه: فایل‌های درسی</h2>
+    <p>مدل تازه <code>CourseMaterial</code> با نسخه مهاجرت ۰۰۰۴ اضافه می‌شود. بایت‌های فایل روی دیسک‌اند و فقط اطلاعات آنها در پایگاه داده:</p>
+    <pre class="code"><code>class LocalStorage:
+    def __init__(self, root: Path, max_bytes: int) -&gt; None:
+        self.root = root
+        self.max_bytes = max_bytes
+
+    def path_for(self, stored_name: str) -&gt; Path:
+        return self.root / stored_name
+
+    def check_type(self, upload: UploadFile) -&gt; str:
+        &quot;&quot;&quot;Validate the declared type AND the real first bytes; return the extension.&quot;&quot;&quot;
+        content_type = upload.content_type or &#x27;&#x27;
+        if content_type not in ALLOWED_TYPES:
+            allowed = &#x27;, &#x27;.join(ALLOWED_TYPES)
+            raise FileValidationError(f&#x27;{content_type!r} is not allowed. Allowed: {allowed}&#x27;)
+        extension, magic = ALLOWED_TYPES[content_type]
+        if magic is not None:
+            head = upload.file.read(len(magic))
+            upload.file.seek(0)
+            if head != magic:
+                raise FileValidationError(f&#x27;The file content is not really {content_type}&#x27;)
+        return extension
+
+    def save(self, upload: UploadFile, extension: str) -&gt; tuple[str, int]:
+        &quot;&quot;&quot;Copy the upload in chunks under a random name. Returns (name, size).&quot;&quot;&quot;
+        self.root.mkdir(parents=True, exist_ok=True)
+        stored_name = f&#x27;{uuid.uuid4().hex}{extension}&#x27;
+        target = self.path_for(stored_name)
+        size = 0
+        try:
+            with target.open(&#x27;wb&#x27;) as out:
+                while chunk := upload.file.read(CHUNK_SIZE):
+                    size += len(chunk)
+                    if size &gt; self.max_bytes:
+                        raise FileTooLargeError(f&#x27;The file is larger than {self.max_bytes} bytes&#x27;)
+                    out.write(chunk)
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
+        return stored_name, size
+
+    def delete(self, stored_name: str) -&gt; None:
+        self.path_for(stored_name).unlink(missing_ok=True)</code></pre>
+    <p class="code-caption">ذخیره امن روی دیسک: <bdi dir="ltr">09_project/app/storage.py</bdi></p>
+    <pre class="code"><code>    def _ensure_can_read(self, course: Course, user: User) -&gt; None:
+        &quot;&quot;&quot;Staff of the course, or a student who is (or was) enrolled in it.&quot;&quot;&quot;
+        if can_manage_course(course, user):
+            return
+        enrollment = self.db.scalar(
+            select(Enrollment).where(
+                Enrollment.course_id == course.id, Enrollment.student_id == user.id
+            )
+        )
+        if enrollment is None or enrollment.status == &#x27;cancelled&#x27;:
+            raise PermissionDeniedError(&#x27;Only students of this course can see its materials&#x27;)</code></pre>
+    <p class="code-caption">چه کسی می‌تواند فایل‌ها را ببیند: <bdi dir="ltr">09_project/app/services.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>endpoint</th><th>دسترسی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>POST /courses/{id}/materials</code></td><td>مدیر یا مدرس همان دوره؛ multipart با <code>file</code> و <code>title</code></td></tr>
+                <tr><td><code>GET /courses/{id}/materials</code></td><td>کادر دوره یا دانشجویانش</td></tr>
+                <tr><td><code>GET /materials/{id}/download</code></td><td>همان‌ها؛ <code>FileResponse</code> با نام اصلی</td></tr>
+                <tr><td><code>DELETE /materials/{id}</code></td><td>ردیف <strong>و</strong> فایل هر دو حذف می‌شوند</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>در کنار این‌ها CORS از روی تنظیم <code>CORS_ORIGINS</code> فعال می‌شود و هر پاسخ هدرهای <code>X-Request-ID</code> و <code>X-Process-Time</code> دارد. درخواست‌های بارگذاری Bruno از فایل‌های نمونه پوشه <code>bruno/files/</code> استفاده می‌کنند؛ یکی از آنها یک PDF جعلی است که باید ۴۱۵ بگیرد.</p>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S11-files-cookies-cors</code> نه پوشه دارد. نمونه ۰۷ دو ترمینال لازم دارد (توضیح در خود فایل). پروژه: <code>alembic upgrade head</code> (نسخه ۰۰۰۴ جدول فایل‌ها را می‌سازد)، <code>python seed.py</code>، <code>python main.py</code>. فایل‌های بارگذاری‌شده در <code>09_project/uploads/</code> ذخیره می‌شوند که هرگز در Git قرار نمی‌گیرد.</p>
+    </div>
+
+    <h2 id="s10">۱۰. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>Header()</code>، <code>response.headers[...]</code></td><td>خواندن و نوشتن هدر</td></tr>
+                <tr><td><code>@app.middleware(&#x27;http&#x27;)</code></td><td>کاری دور همه درخواست‌ها</td></tr>
+                <tr><td><code>set_cookie(..., httponly, secure, samesite)</code></td><td>کوکی امن</td></tr>
+                <tr><td><code>Form()</code>، <code>Annotated[Model, Form()]</code></td><td>داده فرم</td></tr>
+                <tr><td><code>UploadFile</code>، <code>File()</code></td><td>بارگذاری فایل</td></tr>
+                <tr><td>فهرست سفید، بایت جادویی، حد اندازه</td><td>بررسی فایل (۴۱۵ و ۴۱۳)</td></tr>
+                <tr><td><code>uuid4</code> برای نام</td><td>هرگز نام کلاینت</td></tr>
+                <tr><td><code>StaticFiles</code></td><td>پوشه عمومی</td></tr>
+                <tr><td><code>FileResponse(path, filename=...)</code></td><td>دانلود خصوصی پس از بررسی مجوز</td></tr>
+                <tr><td><code>CORSMiddleware</code></td><td>اجازه به مبداهای مشخص</td></tr>
+                <tr><td><code>StreamingResponse</code>، <code>RedirectResponse</code></td><td>پاسخ‌های غیر JSON</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>01_headers</code> پاسخ <code>/hello</code> را بر اساس <code>Accept-Language</code> به سه زبان بدهید و هدر <code>Content-Language</code> را هم بفرستید.</li>
+            <li>در <code>02_cookies</code> مقدار <code>secure=True</code> بگذارید و روی <code>http://127.0.0.1</code> امتحان کنید. در مرورگر چه می‌شود؟</li>
+            <li>فایلی با نام <code>../../hack.txt</code> در <code>04_file_upload</code> بارگذاری کنید. کجا ذخیره شد و کدام خط از شما محافظت کرد؟</li>
+            <li>نوع <code>image/webp</code> را با بایت‌های جادویی‌اش به <code>05_file_validation</code> اضافه کنید.</li>
+            <li>آزمایش دوترمیناله <code>07_cors</code> را انجام دهید؛ بعد همان نشانی را از Bruno صدا بزنید. چرا Bruno هنوز کار می‌کند؟</li>
+            <li>در پروژه <code>GET /courses/{id}/materials.zip</code> بسازید که همه فایل‌های یک دوره را در یک فایل ZIP برگرداند.</li>
+            <li>حداکثر بیست فایل برای هر دوره بگذارید (برای دوره پر ۴۰۰).</li>
+            <li>در Bruno ثابت کنید دانشجویی که ثبت‌نامش را لغو کرده دیگر نمی‌تواند فایل‌ها را دانلود کند.</li>
+            <li><strong>تکلیف:</strong> به کتابخانه تصویر جلد کتاب اضافه کنید: کتابدار یک JPEG یا PNG تا دو مگابایت بارگذاری می‌کند، بایت‌های جادویی بررسی می‌شوند، با نام تصادفی ذخیره می‌شود و بارگذاری جلد تازه فایل قبلی را پاک می‌کند.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-10.html">فصل قبل: JWT، کاربر جاری و نقش‌ها</a>
+        <a href="chapter-12.html">فصل بعد: FastAPI ناهمگام، SQLAlchemy ناهمگام و lifespan</a>
+    </div>
+
+</main>
+
+</body>
+</html>

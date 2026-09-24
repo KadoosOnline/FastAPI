@@ -1,0 +1,21 @@
+meta {
+  name: Teacher deletes the material
+  type: http
+  seq: 16
+}
+
+delete {
+  url: {{baseUrl}}/materials/{{materialId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+tests {
+  test("status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

@@ -1,0 +1,17 @@
+meta {
+  name: Cancel again (404)
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/courses/{{courseId}}/enrollments/4
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 404", function() {
+    expect(res.status).to.equal(404);
+  });
+}

@@ -1,0 +1,18 @@
+meta {
+  name: Catalogue page 2 of 2 per page
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/courses?page=2&size=2&sort=title
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+    expect(res.body.page).to.equal(2);
+  });
+}

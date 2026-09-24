@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل شانزده: پروژه پایانی: یکپارچه‌سازی، رفع باگ، بازنویسی و بازبینی کد. پروژه ناقص، پیدا کردن و رفع باگ، تکمیل endpointها، بازنویسی با GROUP BY، آزمون و کلاینت، پرسش‌های بازبینی کد">
+    <title>فصل ۱۶: پروژه پایانی: یکپارچه‌سازی، رفع باگ، بازنویسی و بازبینی کد</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۱۶</span>
+        <h1>پروژه پایانی: یکپارچه‌سازی، رفع باگ، بازنویسی و بازبینی کد</h1>
+        <p class="lead">امروز درس تازه‌ای نیست. API آموزشگاه را در وضعیتی تحویل می‌گیرید که هر برنامه‌نویسی می‌شناسد: تقریباً تمام. چند آزمون شکست می‌خورند، چند باگ هیچ آزمونی ندارند، دو endpoint جا مانده‌اند، یک endpoint زشت است و کلاینت عقب مانده است. در گروه‌های دونفره همه آنچه در این دوره یاد گرفتید را به کار می‌برید تا پروژه درست، کامل و تمیز شود، و بعد از کدتان در یک جلسه بازبینی دفاع می‌کنید.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">برنامه نهایی چه دارد</a></li>
+            <li><a href="#s2">تقسیم زمان جلسه</a></li>
+            <li><a href="#s3">شروع کار</a></li>
+            <li><a href="#s4">یک راه‌حل</a></li>
+            <li><a href="#s5">بازبینی کد</a></li>
+            <li><a href="#s6">از اینجا به بعد</a></li>
+            <li><a href="#s7">خلاصه دوره</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. برنامه نهایی چه دارد</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>لایه</th><th>آنچه در این دوره ساختیم</th><th>فصل</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>چارچوب</td><td>FastAPI، روترها، مستند زنده</td><td>۲</td></tr>
+                <tr><td>داده ورودی و خروجی</td><td>طرح‌واره‌های Pydantic، Create و Update و Read</td><td>۳</td></tr>
+                <tr><td>ساختار</td><td>تزریق وابستگی، سرویس‌ها، تنظیمات، خطای متمرکز</td><td>۴</td></tr>
+                <tr><td>پایگاه داده</td><td>مدل‌های تایپ‌دار SQLAlchemy 2، رابطه‌ها</td><td>۵ تا ۷</td></tr>
+                <tr><td>تحول طرح</td><td>مهاجرت‌های Alembic ۰۰۰۱ تا ۰۰۰۴</td><td>۸</td></tr>
+                <tr><td>فهرست حرفه‌ای</td><td>صفحه‌بندی، جست‌وجو، فیلتر، مرتب‌سازی</td><td>۸</td></tr>
+                <tr><td>امنیت</td><td>Argon2، JWT، نقش‌ها، قاعده مالکیت</td><td>۹ و ۱۰</td></tr>
+                <tr><td>قابلیت‌های واقعی</td><td>بارگذاری فایل، CORS، middleware</td><td>۱۱</td></tr>
+                <tr><td>کارایی</td><td>async از بالا تا پایین</td><td>۱۲</td></tr>
+                <tr><td>اطمینان</td><td>مجموعه آزمون pytest</td><td>۱۳</td></tr>
+                <tr><td>مصرف‌کننده</td><td>کلاینت پایتونی و مجموعه Bruno</td><td>۱۴ و ۱۵</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s2">۲. تقسیم زمان جلسه</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>بخش</th><th>دقیقه</th><th>آنچه اتفاق می‌افتد</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>توجیه</td><td>۱۰</td><td>خواندن <code>TASKS.md</code> و تشکیل گروه‌ها</td></tr>
+                <tr><td>کار عملی</td><td>۱۲۵</td><td>وظیفه‌های A تا E</td></tr>
+                <tr><td>بازبینی</td><td>۴۵</td><td>ارائه گروه‌ها و پرسش‌های <code>code-review.md</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s3">۳. شروع کار</h2>
+    <pre class="out">cd S16-capstone/01_starting_project
+alembic upgrade head
+python seed.py
+pytest                 # 10 tests fail: your first to-do list
+python main.py         # and open bruno/ in Bruno</pre>
+    <p>وظیفه‌ها با <strong>نشانه‌هایشان</strong> توصیف شده‌اند، همان‌طور که یک گزارش باگ به دستتان می‌رسد، نه با محل دقیق خرابی.</p>
+
+    <h3>A. سبز کردن مجموعه آزمون</h3>
+    <ol>
+        <li>«فهرست دوره‌ها خالی است، در حالی که دوره داریم.»</li>
+        <li>«دوره‌ای با ظرفیت دو، دانشجوی سوم را پذیرفت.»</li>
+        <li>«پاسخ ثبت‌نام چیزی را نشان می‌دهد که هرگز نباید نشان دهد.»</li>
+        <li>«<code>GET /users/me/enrollments</code> با ۵۰۰ از کار می‌افتد.»</li>
+        <li>«رمزهایی مثل <code>12345678</code> پذیرفته می‌شوند.»</li>
+        <li>«یک مدرس یک دوره را حذف کرد.»</li>
+        <li>«هر مدرس واردشده‌ای دانشجویان همه دوره‌ها را می‌بیند.»</li>
+    </ol>
+
+    <h3>B. باگ‌هایی که هنوز آزمونی ندارند</h3>
+    <ol>
+        <li>«فیلتر <code>min_price=3000000</code> دوره‌های <strong>ارزان</strong> را نشان می‌دهد.»</li>
+        <li>«کاربری را غیرفعال کردیم، اما برنامه‌اش تا انقضای توکن کار می‌کند.»</li>
+        <li>«دانشجویی که ثبت‌نامش را لغو کرده هنوز فایل‌های درسی را دانلود می‌کند.»</li>
+        <li>«یک مدرس ظرفیت دوره را منفی سه گذاشت.»</li>
+    </ol>
+    <p>برای هر کدام اول یک آزمون بنویسید که شکست بخورد، بعد باگ را درست کنید و ببینید آزمون سبز می‌شود.</p>
+
+    <h3>C. قابلیت‌های جامانده</h3>
+    <ol>
+        <li><code>PATCH /users/me</code>: کاربر نام کامل خودش را تغییر دهد، هرگز نقش یا <code>is_active</code> را.</li>
+        <li><code>POST /users/me/password</code>: رمز قدیمی اشتباه ۴۰۱، رمز تازه ضعیف ۴۲۲ و موفقیت ۲۰۴.</li>
+    </ol>
+
+    <h3>D. بازنویسی</h3>
+    <ol>
+        <li><code>GET /users/stats</code> کار می‌کند، اما نگاهش کنید: منطق کسب‌وکار در روتر، کل جدول‌ها در پایتون و حلقه‌های تودرتو. آن را به سرویس ببرید و بگذارید پایگاه داده با <code>GROUP BY</code> بشمارد. پاسخ JSON نباید تغییر کند.</li>
+    </ol>
+    <pre class="code"><code>@router.get(&#x27;/stats&#x27;)
+async def stats(admin: AdminUser, db: DbSession) -&gt; dict:
+    # REFACTOR ME (capstone): business logic in a router, Python loops over whole tables
+    users = (await db.scalars(select(User))).all()
+    roles = {}
+    for u in users:
+        if u.role in roles:
+            roles[u.role] = roles[u.role] + 1
+        else:
+            roles[u.role] = 1
+    courses = (await db.scalars(select(Course))).all()
+    active = 0
+    for c in courses:
+        if c.is_active == True:  # noqa: E712
+            active += 1
+    enrollments = (await db.scalars(select(Enrollment))).all()
+    statuses = {}
+    for e in enrollments:
+        statuses[e.status] = statuses.get(e.status, 0) + 1
+    counts = {}
+    for e in enrollments:
+        if e.status == &#x27;active&#x27;:
+            for c in courses:
+                if c.id == e.course_id:
+                    counts[c.title] = counts.get(c.title, 0) + 1
+    top = sorted(counts.items(), key=lambda x: -x[1])[:3]
+    return {
+        &#x27;users_per_role&#x27;: roles,
+        &#x27;active_courses&#x27;: active,
+        &#x27;enrollments_per_status&#x27;: statuses,
+        &#x27;top_courses&#x27;: [{&#x27;title&#x27;: t, &#x27;students&#x27;: n} for t, n in top],
+    }</code></pre>
+    <p class="code-caption">کدی که باید بازنویسی شود: <bdi dir="ltr">01_starting_project/app/routers/users.py</bdi></p>
+
+    <h3>E. آزمون و کلاینت</h3>
+    <ol>
+        <li>برای هر باگ بخش B و هر قابلیت بخش C آزمون بنویسید.</li>
+        <li>به <code>client_app</code> متدهای <code>update_me</code>، <code>change_password</code>، <code>my_enrollments</code> و <code>enroll</code> را با آزمون MockTransport اضافه کنید، به‌علاوه نمای دانشجو در داشبورد.</li>
+    </ol>
+    <div class="tip">
+        <span class="box-title">روش پیشنهادی</span>
+        <p>برای هر وظیفه: نشانه را در Bruno بازسازی کنید، آزمونی بنویسید که همان نشانه را نشان دهد، کد را درست کنید و کل مجموعه را دوباره اجرا کنید. هیچ درستی بدون آزمون پذیرفته نیست.</p>
+    </div>
+
+    <h2 id="s4">۴. یک راه‌حل</h2>
+    <p>پوشه <code>02_solution</code> یک راه‌حل کامل است که همه ۶۹ آزمونش سبزند. <strong>فقط بعد از بازبینی</strong> بازش کنید و با کار خودتان مقایسه کنید.</p>
+    <pre class="code"><code>    async def stats(self) -&gt; Stats:
+        &quot;&quot;&quot;Every number is computed by the DATABASE (GROUP BY), not by Python loops.&quot;&quot;&quot;
+        roles = await self.db.execute(select(User.role, func.count()).group_by(User.role))
+        statuses = await self.db.execute(
+            select(Enrollment.status, func.count()).group_by(Enrollment.status)
+        )
+        active_courses = await self.db.scalar(
+            select(func.count()).select_from(Course).where(Course.is_active)
+        )
+        top = await self.db.execute(
+            select(Course.title, func.count(Enrollment.id).label(&#x27;students&#x27;))
+            .join(Enrollment, Enrollment.course_id == Course.id)
+            .where(Enrollment.status == &#x27;active&#x27;)
+            .group_by(Course.id)
+            .order_by(func.count(Enrollment.id).desc(), Course.title)
+            .limit(3)
+        )
+        return Stats(
+            users_per_role=dict(roles.tuples().all()),
+            active_courses=active_courses or 0,
+            enrollments_per_status=dict(statuses.tuples().all()),
+            top_courses=[{&#x27;title&#x27;: title, &#x27;students&#x27;: n} for title, n in top.tuples()],
+        )</code></pre>
+    <p class="code-caption">آمار با GROUP BY: <bdi dir="ltr">02_solution/app/services.py</bdi></p>
+    <pre class="code"><code>    async def update_me(self, user: User, data: UserUpdateMe) -&gt; User:
+        user.full_name = data.full_name
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def change_password(self, user: User, data: PasswordChange) -&gt; None:
+        valid, _ = verify_password(data.old_password, user.hashed_password)
+        if not valid:
+            raise AuthenticationError(&#x27;The old password is not correct&#x27;)
+        if data.old_password == data.new_password:
+            raise BusinessRuleError(&#x27;The new password must be different&#x27;)
+        user.hashed_password = hash_password(data.new_password)
+        await self.db.commit()</code></pre>
+    <p class="code-caption">تغییر نام و رمز: <bdi dir="ltr">02_solution/app/services.py</bdi></p>
+    <pre class="code"><code>async def test_disabled_user_token_stops_working(
+    client: AsyncClient, make_user: UserFactory, auth: Auth
+) -&gt; None:
+    admin, student = await make_user(&#x27;admin&#x27;), await make_user(&#x27;student&#x27;)
+    headers = auth(student)
+    assert (await client.get(&#x27;/users/me&#x27;, headers=headers)).status_code == 200
+
+    await client.patch(f&#x27;/users/{student.id}&#x27;, json={&#x27;is_active&#x27;: False}, headers=auth(admin))
+
+    assert (await client.get(&#x27;/users/me&#x27;, headers=headers)).status_code == 403</code></pre>
+    <p class="code-caption">آزمون باگ کاربر غیرفعال: <bdi dir="ltr">02_solution/tests/test_capstone.py</bdi></p>
+
+    <h2 id="s5">۵. بازبینی کد</h2>
+    <p>هر گروه پنج تا هفت دقیقه پروژه‌اش را ارائه می‌دهد و بعد به پرسش‌های گروه دیگر پاسخ می‌دهد. با <strong>کد خودتان</strong> روی صفحه پاسخ دهید و به فایل و خط اشاره کنید.</p>
+    <ol>
+        <li>مسیر یک درخواست، <code>POST /courses/{id}/enrollments</code>، را از روتر تا پایگاه داده و برگشت دنبال کنید. به کدام فایل‌ها دست می‌زند و چرا هر کدام جداست؟</li>
+        <li>چرا برای یک دوره هم طرح‌واره Pydantic داریم و هم مدل SQLAlchemy؟ فیلدی نشان دهید که فقط در یکی از آنها هست.</li>
+        <li>نگاشت‌های تایپ‌دار (<code>Mapped[int]</code>) در برابر سبک قدیمی <code>Column(...)</code> چه چیزی به ما می‌دهند؟</li>
+        <li>پرس‌وجویی نشان دهید که از N+1 دوری می‌کند. چطور ثابتش می‌کنید؟</li>
+        <li>چرا طرح پایگاه داده با Alembic تغییر می‌کند و نه با <code>create_all</code>؟</li>
+        <li>سه جا را نشان دهید که تزریق وابستگی به کار رفته است. آزمون‌ها کدام را جایگزین کردند؟</li>
+        <li>async کجا واقعاً به این API کمک می‌کند و کجا نه؟ اگر کسی در یک سرویس <code>time.sleep()</code> صدا بزند چه می‌شود؟</li>
+        <li>جریان ورود را از فرم تا JWT توضیح دهید. چه چیزی در توکن هست و چه چیزی نیست؟</li>
+        <li>API فرق ۴۰۱ و ۴۰۳ را از کجا می‌فهمد؟</li>
+        <li>کدام قاعده جلوی مدرسی را می‌گیرد که می‌خواهد دوره مدرس دیگری را تغییر دهد؟</li>
+        <li>فایل‌های بارگذاری‌شده چطور بررسی می‌شوند و کجا ذخیره می‌شوند؟</li>
+        <li>آزمون‌هایتان چطور از API محافظت می‌کنند؟ یک آزمون شکست را نشان دهید که به آن افتخار می‌کنید.</li>
+        <li>کلاینت پایتونی چطور با API صحبت می‌کند و وقتی سرور خاموش است چه می‌کند؟</li>
+        <li>اگر یک روز دیگر وقت داشتید، اول چه چیزی را بهتر می‌کردید؟</li>
+    </ol>
+
+    <h2 id="s6">۶. از اینجا به بعد</h2>
+    <p>این دوره عمداً از چیزهایی مثل Redis، صف‌های کار، Kubernetes و استقرار ابری دوری کرد تا روی پایه‌ها تمرکز کند. قدم‌های منطقی بعدی:</p>
+    <ul>
+        <li><strong>استقرار:</strong> اجرای برنامه پشت یک سرور وب با چند worker و PostgreSQL واقعی.</li>
+        <li><strong>توکن تازه‌سازی (refresh token)</strong> برای ورودهای طولانی بدون توکن دسترسی بلندعمر.</li>
+        <li><strong>کارهای پس‌زمینه:</strong> فرستادن ایمیل تأیید بدون معطل کردن درخواست.</li>
+        <li><strong>مشاهده‌پذیری:</strong> لاگ ساختاریافته با <code>X-Request-ID</code> و اندازه‌گیری زمان پاسخ‌ها.</li>
+        <li><strong>CI:</strong> اجرای خودکار <code>pytest</code> و <code>ruff</code> روی هر commit.</li>
+    </ul>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S16-capstone</code> شامل <code>01_starting_project</code> (نقطه شروع شما، اول <code>TASKS.md</code> را بخوانید)، <code>02_solution</code> (یک راه‌حل کامل) و <code>code-review.md</code> (پرسش‌های بازبینی) است.</p>
+    </div>
+
+    <h2 id="s7">۷. خلاصه دوره</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>فصل</th><th>یک جمله</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>۱</td><td>FastAPI همان پایتون پیشرفته است که با تمام قدرت به کار رفته.</td></tr>
+                <tr><td>۲</td><td>مسیر، تابع، کد وضعیت؛ و روترها برای نظم.</td></tr>
+                <tr><td>۳</td><td>به کلاینت اعتماد نکن: هر ورودی و خروجی یک طرح‌واره دارد.</td></tr>
+                <tr><td>۴</td><td>وابستگی‌ها ساختار را ممکن می‌کنند؛ سرویس‌ها از HTTP خبر ندارند.</td></tr>
+                <tr><td>۵</td><td>نوع پایتونی خودِ ستون پایگاه داده است.</td></tr>
+                <tr><td>۶</td><td>پرس‌وجو را بخوان، تراکنش را بشناس، قید را تور ایمنی بدان.</td></tr>
+                <tr><td>۷</td><td>رابطه راحت است؛ N+1 را ببین و درستش کن.</td></tr>
+                <tr><td>۸</td><td>طرح پایگاه داده تاریخچه دارد؛ فهرست‌ها صفحه دارند.</td></tr>
+                <tr><td>۹</td><td>رمز را هرگز ذخیره نکن؛ دو شکست ورود را یکسان پاسخ بده.</td></tr>
+                <tr><td>۱۰</td><td>۴۰۱ یعنی «کیستی»، ۴۰۳ یعنی «اجازه نداری».</td></tr>
+                <tr><td>۱۱</td><td>به نوع فایل اعلام‌شده اعتماد نکن؛ بایت‌ها را بخوان.</td></tr>
+                <tr><td>۱۲</td><td>async فقط وقتی کمک می‌کند که هیچ چیز مسدود نکند.</td></tr>
+                <tr><td>۱۳</td><td>آزمون شکست به اندازه آزمون موفقیت مهم است.</td></tr>
+                <tr><td>۱۴</td><td>یک کلاینت خوب پیچیدگی HTTP را پشت متدهای تایپ‌دار پنهان می‌کند.</td></tr>
+                <tr><td>۱۵</td><td>فقط درخواست‌های idempotent را دوباره امتحان کن.</td></tr>
+                <tr><td>۱۶</td><td>کدی که می‌توانی از آن دفاع کنی، کدی است که می‌فهمی.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>همه وظیفه‌های A تا E فایل <code>TASKS.md</code> را انجام دهید.</li>
+            <li>به <code>GET /courses/{id}/materials</code> صفحه‌بندی با <code>Page[T]</code> اضافه کنید.</li>
+            <li>وضعیت <code>completed</code> را اضافه کنید: <code>POST /courses/{id}/complete/{student_id}</code> برای مدرس دوره و یک endpoint گواهی که فقط برای دانشجوی تمام‌کرده یک فایل متنی برگرداند.</li>
+            <li>کل پروژه را روی PostgreSQL با asyncpg اجرا کنید و مجموعه Bruno را دوباره اجرا کنید.</li>
+            <li>با <code>DATABASE_ECHO=true</code> تعداد دستورهای SQL <code>GET /users/stats</code> را پیش و پس از بازنویسی بشمارید.</li>
+            <li><strong>پروژه پایانی:</strong> API کتابخانه را به یک برنامه کامل با همین شکل تبدیل کنید: روترها، طرح‌واره‌ها، سرویس‌ها، وابستگی‌ها، تنظیمات، مدل‌ها با رابطه، مهاجرت‌های Alembic، JWT با دو نقش، بارگذاری جلد، صفحه‌بندی و فیلتر، دست‌کم سی آزمون، یک مجموعه Bruno و یک کلاینت ناهمگام با داشبورد. با پرسش‌های بازبینی این فصل از آن دفاع کنید.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-15.html">فصل قبل: کلاینت ناهمگام، تلاش دوباره و یکپارچه‌سازی</a>
+        <a href="index.html">بازگشت به فهرست مطالب</a>
+    </div>
+
+</main>
+
+</body>
+</html>

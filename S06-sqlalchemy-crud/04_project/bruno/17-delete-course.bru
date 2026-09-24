@@ -1,0 +1,21 @@
+meta {
+  name: Delete course
+  type: http
+  seq: 17
+}
+
+delete {
+  url: {{baseUrl}}/courses/{{courseId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-API-Key: {{adminKey}}
+}
+
+tests {
+  test("status is 204", function() {
+    expect(res.status).to.equal(204);
+  });
+}

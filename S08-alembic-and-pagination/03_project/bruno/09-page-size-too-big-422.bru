@@ -1,0 +1,17 @@
+meta {
+  name: Page size too big (422)
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/courses?size=1000
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

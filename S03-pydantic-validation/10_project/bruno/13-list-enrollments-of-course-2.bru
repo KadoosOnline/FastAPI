@@ -1,0 +1,17 @@
+meta {
+  name: List enrollments of course 2
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/courses/2/enrollments
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+}

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل شش: CRUD واقعی با SQLAlchemy 2. select و where، scalar و scalars و execute، شمارش و گروه‌بندی، جست‌وجو، ویرایش و حذف، تراکنش، IntegrityError، چرخه عمر نشست">
+    <title>فصل ۶: CRUD واقعی با SQLAlchemy 2</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۶</span>
+        <h1>CRUD واقعی با SQLAlchemy 2</h1>
+        <p class="lead">پرس‌وجوها را خودمان می‌نویسیم. با شرط انتخاب می‌کنیم، بین scalar و scalars و execute تصمیم می‌گیریم، شمردن و گروه‌بندی را به پایگاه داده می‌سپاریم، با اطمینان ویرایش و حذف می‌کنیم، چند تغییر را در یک تراکنش نگه می‌داریم و ردیف ناموجود و قید شکسته را به پاسخ‌های تمیز ۴۰۴ و ۴۰۹ تبدیل می‌کنیم. در پایان CRUD کامل آموزشگاه را می‌نویسیم و یک کد بد را بازنویسی می‌کنیم.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">یک مدل مشترک برای تمرین</a></li>
+            <li><a href="#s2">select و where</a></li>
+            <li><a href="#s3">scalar، scalars یا execute؟</a></li>
+            <li><a href="#s4">شمردن و گروه‌بندی در خود پایگاه داده</a></li>
+            <li><a href="#s5">ساختن جست‌وجو از فیلترهای اختیاری</a></li>
+            <li><a href="#s6">ویرایش و حذف</a></li>
+            <li><a href="#s7">تراکنش: همه یا هیچ</a></li>
+            <li><a href="#s8">ایمیل تکراری: اول بررسی کن، باز هم IntegrityError را بگیر</a></li>
+            <li><a href="#s9">چرخه عمر نشست</a></li>
+            <li><a href="#s10">یک CRUD «کارا» با شش مشکل جدی</a></li>
+            <li><a href="#s11">پروژه: CRUD کامل آموزشگاه</a></li>
+            <li><a href="#s12">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. یک مدل مشترک برای تمرین</h2>
+    <p>پوشه‌های <code>01_queries</code> و <code>02_changes</code> هر کدام یک <code>models.py</code> دارند با کاربر و دوره و تابع <code>reset_database()</code> که هر بار داده نمونه یکسانی می‌سازد. اسکریپت‌های شماره‌دار را به هر ترتیبی می‌توانید اجرا کنید.</p>
+
+    <h2 id="s2">۲. select و where</h2>
+    <pre class="code"><code>from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from models import Course, engine, reset_database
+
+
+def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        stmt = select(Course).where(Course.price &lt; 3_000_000).order_by(Course.price)
+        print(stmt)  # the SQL, with placeholders
+        print(session.scalars(stmt).all())
+
+        both = select(Course).where(Course.level == &#x27;advanced&#x27;, Course.instructor_id == 1)
+        print(session.scalars(both).all())
+
+        either = select(Course).where(or_(Course.level == &#x27;beginner&#x27;, Course.price &gt; 4_000_000))
+        print(session.scalars(either).all())
+
+        in_list = select(Course.title).where(Course.level.in_([&#x27;beginner&#x27;, &#x27;intermediate&#x27;]))
+        print(session.scalars(in_list).all())
+
+        like = select(Course).where(Course.title.ilike(&#x27;%python%&#x27;), Course.is_active)
+        print(session.scalars(like).all())
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">ساختن پرس‌وجو و اجرای آن: <bdi dir="ltr">01_queries/01_select_and_where.py</bdi></p>
+    <p><code>Course.price &lt; 3_000_000</code> عددها را مقایسه <strong>نمی‌کند</strong>؛ یک تکه SQL می‌سازد: <code>courses.price &lt; :price_1</code>. هر پرس‌وجو را می‌توان چاپ کرد و SQL آن را خواند.</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>نوشتن</th><th>معنی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>.where(a, b)</code></td><td>a <strong>و</strong> b</td></tr>
+                <tr><td><code>.where(or_(a, b))</code></td><td>a <strong>یا</strong> b</td></tr>
+                <tr><td><code>.where(Course.level.in_([...]))</code></td><td>یکی از چند مقدار</td></tr>
+                <tr><td><code>.where(Course.title.ilike(&#x27;%python%&#x27;))</code></td><td>شامل متن، بدون حساسیت به بزرگی حرف</td></tr>
+                <tr><td><code>.order_by(Course.price.desc())</code></td><td>مرتب‌سازی نزولی</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s3">۳. scalar، scalars یا execute؟</h2>
+    <pre class="code"><code>from sqlalchemy import func, select
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound
+from sqlalchemy.orm import Session
+
+from models import Course, engine, reset_database
+
+
+def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        courses = session.scalars(select(Course).order_by(Course.id)).all()
+        print(&#x27;scalars   -&gt;&#x27;, courses[:2], &#x27;...&#x27;)
+
+        count = session.scalar(select(func.count()).select_from(Course))
+        print(&#x27;scalar    -&gt;&#x27;, count)
+
+        rows = session.execute(select(Course.title, Course.price).where(Course.price &gt; 3_000_000))
+        for row in rows:
+            print(&#x27;execute   -&gt;&#x27;, row.title, row.price)
+
+        print(&#x27;get       -&gt;&#x27;, session.get(Course, 3), session.get(Course, 99))
+
+        one = session.execute(select(Course).where(Course.title == &#x27;FastAPI&#x27;)).scalar_one()
+        print(&#x27;scalar_one-&gt;&#x27;, one)
+
+        for title in [&#x27;Nothing&#x27;, None]:
+            stmt = select(Course).where(Course.title == title) if title else select(Course)
+            try:
+                session.execute(stmt).scalar_one()
+            except (NoResultFound, MultipleResultsFound) as error:
+                print(&#x27;error     -&gt;&#x27;, type(error).__name__)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">سه روش گرفتن نتیجه: <bdi dir="ltr">01_queries/02_scalar_scalars_execute.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>روش</th><th>نتیجه</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>session.scalars(select(Course))</code></td><td>چند <strong>شیء</strong>: <code>.all()</code> یا <code>.first()</code></td></tr>
+                <tr><td><code>session.scalar(...)</code></td><td><strong>یک مقدار</strong> یا <code>None</code></td></tr>
+                <tr><td><code>session.execute(select(Course.title, Course.price))</code></td><td><strong>ردیف‌هایی</strong> با چند ستون</td></tr>
+                <tr><td><code>session.get(Course, 3)</code></td><td>با کلید اصلی، یا <code>None</code></td></tr>
+                <tr><td><code>.scalar_one()</code></td><td>دقیقاً یکی، وگرنه استثنا</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h2 id="s4">۴. شمردن و گروه‌بندی در خود پایگاه داده</h2>
+    <p>هرگز ده هزار ردیف را برای شمردن به پایتون نیاورید:</p>
+    <pre class="code"><code>from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from models import Course, User, engine, reset_database
+
+
+def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        print(&#x27;active courses:&#x27;, session.scalar(select(func.count()).where(Course.is_active)))
+        print(&#x27;average price :&#x27;, round(session.scalar(select(func.avg(Course.price))) or 0))
+        print(&#x27;cheapest      :&#x27;, session.scalar(select(func.min(Course.price))))
+
+        per_level = session.execute(
+            select(Course.level, func.count().label(&#x27;n&#x27;)).group_by(Course.level).order_by(&#x27;level&#x27;)
+        )
+        for level, n in per_level:
+            print(f&#x27;  {level:&lt;13} {n}&#x27;)
+
+        per_teacher = session.execute(
+            select(User.full_name, func.count(Course.id), func.sum(Course.price))
+            .join(Course, Course.instructor_id == User.id)
+            .group_by(User.id)
+        )
+        for name, n, total in per_teacher:
+            print(f&#x27;  {name:&lt;13} {n} courses, {total:,} IRT&#x27;)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">count، avg و group_by: <bdi dir="ltr">01_queries/03_aggregates_and_groups.py</bdi></p>
+
+    <h2 id="s5">۵. ساختن جست‌وجو از فیلترهای اختیاری</h2>
+    <p>هر <code>.where()</code> یک پرس‌وجوی <strong>تازه</strong> برمی‌گرداند. پس تابع جست‌وجو فقط شرط‌هایی را اضافه می‌کند که کاربر خواسته است:</p>
+    <pre class="code"><code>def search_courses(
+    session: Session,
+    *,
+    q: str | None = None,
+    level: str | None = None,
+    min_price: int | None = None,
+    max_price: int | None = None,
+    only_active: bool = True,
+) -&gt; list[Course]:
+    stmt = select(Course)
+    if q:
+        stmt = stmt.where(Course.title.ilike(f&#x27;%{q}%&#x27;))
+    if level:
+        stmt = stmt.where(Course.level == level)
+    if min_price is not None:
+        stmt = stmt.where(Course.price &gt;= min_price)
+    if max_price is not None:
+        stmt = stmt.where(Course.price &lt;= max_price)
+    if only_active:
+        stmt = stmt.where(Course.is_active)
+    return list(session.scalars(stmt.order_by(Course.price)))</code></pre>
+    <p class="code-caption">جست‌وجو با فیلترهای اختیاری: <bdi dir="ltr">01_queries/04_search_and_filter.py</bdi></p>
+    <div class="note">
+        <span class="box-title">چرا این کد در برابر تزریق SQL امن است؟</span>
+        <p>مقدارها همیشه به عنوان <strong>پارامتر</strong> فرستاده می‌شوند و هرگز به متن SQL چسبانده نمی‌شوند. ورودی <code>x&#x27; OR 1=1 --</code> فقط به دنبال عنوانی با همین متن می‌گردد و چیزی پیدا نمی‌کند.</p>
+    </div>
+
+    <h2 id="s6">۶. ویرایش و حذف</h2>
+    <p>در شیوه ORM، شیء را بارگذاری می‌کنیم، صفت‌هایش را عوض می‌کنیم و <code>commit</code> می‌کنیم. نشست تغییرات را دنبال می‌کند و فقط ستون‌های تغییرکرده را می‌نویسد:</p>
+    <pre class="code"><code>from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+
+from models import Course, engine, reset_database
+
+
+def main() -&gt; None:
+    reset_database()
+    with Session(engine) as session:
+        course = session.get(Course, 1)
+        assert course is not None
+        course.price = 2_700_000
+        course.title = &#x27;Python Basics (2026)&#x27;
+        print(&#x27;dirty before commit:&#x27;, session.dirty)
+        session.commit()
+        print(&#x27;after commit       :&#x27;, session.get(Course, 1))
+
+        # &quot;apply these changes&quot; from a dict -- exactly what a PATCH endpoint does
+        changes = {&#x27;level&#x27;: &#x27;intermediate&#x27;, &#x27;price&#x27;: 3_000_000}
+        for field, value in changes.items():
+            setattr(course, field, value)
+        session.commit()
+        print(&#x27;patched            :&#x27;, course, course.level)
+
+        result = session.execute(
+            update(Course).where(Course.level == &#x27;advanced&#x27;).values(price=Course.price * 110 // 100)
+        )
+        session.commit()
+        print(&#x27;bulk updated rows  :&#x27;, result.rowcount)
+        print(session.scalars(select(Course).where(Course.level == &#x27;advanced&#x27;)).all())
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">ویرایش شیء، setattr برای PATCH و ویرایش گروهی: <bdi dir="ltr">02_changes/01_update.py</bdi></p>
+    <pre class="code"><code>def delete_course(session: Session, course_id: int) -&gt; bool:
+    course = session.get(Course, course_id)
+    if course is None:
+        return False  # the API turns this into 404
+    session.delete(course)
+    session.commit()
+    return True</code></pre>
+    <p class="code-caption">حذف امن: <bdi dir="ltr">02_changes/02_delete.py</bdi></p>
+    <p><strong>حذف نرم</strong> یعنی به جای حذف واقعی، <code>is_active = False</code>. تاریخچه، مثل پرداخت‌ها و ثبت‌نام‌ها، درست می‌ماند.</p>
+
+    <h2 id="s7">۷. تراکنش: همه یا هیچ</h2>
+    <p>همه چیز بین دو <code>commit</code> یک تراکنش است. اگر وسط کار چیزی شکست بخورد، <code>rollback()</code> <strong>همه</strong> را برمی‌گرداند:</p>
+    <pre class="code"><code>def hand_over(old_id: int, new_id: int, fail_half_way: bool = False) -&gt; None:
+    with Session(engine) as session, session.begin():
+        for course in session.scalars(select(Course).where(Course.instructor_id == old_id)):
+            course.instructor_id = new_id
+            if fail_half_way:
+                raise RuntimeError(&#x27;network failure after moving one course&#x27;)
+        old = session.get(User, old_id)
+        assert old is not None
+        session.delete(old)
+
+
+def report() -&gt; None:
+    with Session(engine) as session:
+        users = session.scalar(select(func.count()).select_from(User))
+        ali = session.scalar(select(func.count()).where(Course.instructor_id == 1))
+        print(f&#x27;  users={users}, courses of Ali={ali}&#x27;)
+
+
+def main() -&gt; None:
+    reset_database()
+    report()
+    try:
+        hand_over(old_id=1, new_id=2, fail_half_way=True)
+    except RuntimeError as error:
+        print(&#x27;failed:&#x27;, error)
+    report()  # nothing changed: the first course was moved back by the rollback
+
+    hand_over(old_id=1, new_id=2)
+    print(&#x27;done&#x27;)
+    report()
+
+
+if __name__ == &#x27;__main__&#x27;:
+    main()</code></pre>
+    <p class="code-caption">مدرسی که می‌رود: <bdi dir="ltr">02_changes/03_transactions.py</bdi></p>
+    <pre class="out">  users=3, courses of Ali=3
+failed: network failure after moving one course
+  users=3, courses of Ali=3
+done
+  users=2, courses of Ali=0</pre>
+    <div class="warn">
+        <span class="box-title">اشتباه رایج: A transaction is already begun</span>
+        <p>اولین نسخه این مثال یک نشست را برای گزارش و برای تراکنش مشترک استفاده می‌کرد. اولین پرس‌وجو بی‌صدا یک تراکنش شروع کرده بود («autobegin») و <code>session.begin()</code> بعدی خطا می‌داد. قانون: هر واحد کار، یک نشست کوتاه.</p>
+    </div>
+
+    <h2 id="s8">۸. ایمیل تکراری: اول بررسی کن، باز هم IntegrityError را بگیر</h2>
+    <pre class="code"><code>class DuplicateEmailError(Exception):
+    pass
+
+
+def register(session: Session, email: str, full_name: str, check_first: bool = True) -&gt; User:
+    email = email.lower()
+    if check_first and session.scalar(select(User).where(User.email == email)):
+        raise DuplicateEmailError(f&#x27;{email} is already registered (checked in Python)&#x27;)
+    user = User(email=email, full_name=full_name)
+    session.add(user)
+    try:
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise DuplicateEmailError(f&#x27;{email} is already registered (database said no)&#x27;) from error
+    return user</code></pre>
+    <p class="code-caption">دو لایه دفاع: <bdi dir="ltr">02_changes/04_integrity_errors.py</bdi></p>
+    <ol>
+        <li>بررسی در سرویس («این ایمیل گرفته شده؟») پیام دوستانه ۴۰۹ می‌دهد.</li>
+        <li>قید پایگاه داده تور ایمنی است. دو درخواست می‌توانند هم‌زمان از بررسی عبور کنند؛ فقط پایگاه داده جلوی دومی را می‌گیرد. پس <code>IntegrityError</code> را هم بگیرید، <code>rollback()</code> کنید و باز ۴۰۹ بدهید.</li>
+    </ol>
+
+    <h2 id="s9">۹. چرخه عمر نشست</h2>
+    <p>فایل <code>05_session_lifecycle.py</code> با <code>echo</code> روشن نشان می‌دهد SQL کی فرستاده می‌شود:</p>
+    <ul>
+        <li><strong>نقشه هویت:</strong> در یک نشست، <code>get(Course, 1)</code> دو بار <strong>همان</strong> شیء پایتون را برمی‌گرداند و بار دوم هیچ SQLی اجرا نمی‌شود.</li>
+        <li>**<code>flush()</code>** تغییرات را به پایگاه داده می‌فرستد بدون اینکه تراکنش تمام شود؛ برای گرفتن زودهنگام <code>id</code> مفید است.</li>
+        <li>**<code>commit()</code>** یعنی flush و پایان تراکنش. شیءها «منقضی» می‌شوند و دسترسی بعدی دوباره از پایگاه داده می‌خواند.</li>
+        <li>**<code>refresh(obj)</code>** یک شیء را همین حالا دوباره می‌خواند.</li>
+    </ul>
+
+    <h2 id="s10">۱۰. یک CRUD «کارا» با شش مشکل جدی</h2>
+    <p><code>03_refactor_me/app.py</code> کار می‌کند، تا وقتی دو چیز خراب شود:</p>
+    <ol>
+        <li><strong>یک نشست سراسری</strong> برای همه درخواست‌ها. بعد از یک <code>commit</code> ناموفق، مثلاً ثبت ایمیل تکراری، نشست خراب می‌شود و <strong>همه</strong> درخواست‌های بعدی با <code>PendingRollbackError</code> شکست می‌خورند.</li>
+        <li>جست‌وجو ورودی کاربر را به متن SQL می‌چسباند: <strong>تزریق SQL</strong>. نشانی <code>/courses/search?q=%&#x27; OR is_hidden=1 --</code> دوره مخفی را نشان می‌دهد.</li>
+        <li>برای یافتن یک دوره، همه دوره‌ها بارگذاری و در پایتون جست‌وجو می‌شوند.</li>
+        <li>دوره ناموجود ۲۰۰ با <code>{&quot;error&quot;: ...}</code> و حذف <code>{&quot;ok&quot;: false}</code> برمی‌گرداند.</li>
+        <li>ویرایش یک دیکشنری خام می‌گیرد: بدون اعتبارسنجی، کلاینت می‌تواند <code>id</code> را هم عوض کند.</li>
+        <li>طرح‌واره پاسخ ندارد: همه ستون‌ها به کلاینت فرستاده می‌شوند.</li>
+    </ol>
+
+    <h2 id="s11">۱۱. پروژه: CRUD کامل آموزشگاه</h2>
+    <pre class="code"><code>    def _apply(self, course: Course, changes: dict[str, Any]) -&gt; Course:
+        if &#x27;title&#x27; in changes and changes[&#x27;title&#x27;] != course.title:
+            self._check_title_is_free(changes[&#x27;title&#x27;], course.instructor_id)
+        if &#x27;capacity&#x27; in changes:
+            active = EnrollmentService(self.db).active_count(course.id)
+            if changes[&#x27;capacity&#x27;] &lt; active:
+                raise BusinessRuleError(f&#x27;capacity can not be lower than {active} active students&#x27;)
+        for field, value in changes.items():
+            setattr(course, field, value)
+        self.db.commit()
+        self.db.refresh(course)
+        return course</code></pre>
+    <p class="code-caption">اعمال تغییرات با قاعده‌های کسب‌وکار: <bdi dir="ltr">04_project/app/services.py</bdi></p>
+    <ul>
+        <li>دوره‌ها: <code>PUT</code> (جایگزینی)، <code>PATCH</code> (تغییر بخشی)، <code>DELETE</code> و جست‌وجو با <code>q</code>، <code>level</code>، <code>min_price</code>، <code>max_price</code> و <code>is_active</code>.</li>
+        <li><code>PATCH</code> با <code>{&quot;title&quot;: null}</code> یا بدنه خالی رد می‌شود.</li>
+        <li>کاربران: <code>PATCH</code> و <code>DELETE</code> (برای مدرسی که هنوز دوره دارد ۴۰۹).</li>
+        <li>ثبت‌نام: <code>DELETE</code> لغو می‌کند و ثبت‌نام دوباره همان ردیف را فعال می‌کند.</li>
+        <li>ظرفیت نمی‌تواند از تعداد دانشجویان فعال کمتر شود.</li>
+        <li>handler <code>IntegrityError</code> در <code>exceptions.py</code> آخرین تور ایمنی است.</li>
+    </ul>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S06-sqlalchemy-crud</code> چهار پوشه دارد. اسکریپت‌ها با <code>python 01_select_and_where.py</code> و مانند آن اجرا می‌شوند. پیش از اجرای کامل مجموعه Bruno پروژه، <code>training.db</code> را پاک کنید و دوباره <code>python seed.py</code> بزنید.</p>
+    </div>
+
+    <h2 id="s12">۱۲. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>select(...).where(...).order_by(...)</code></td><td>ساختن پرس‌وجو</td></tr>
+                <tr><td><code>scalars</code>، <code>scalar</code>، <code>execute</code>، <code>get</code></td><td>گرفتن نتیجه به شکل درست</td></tr>
+                <tr><td><code>func.count</code>، <code>group_by</code>، <code>join</code></td><td>محاسبه در پایگاه داده</td></tr>
+                <tr><td>پرس‌وجوی گام‌به‌گام</td><td>جست‌وجو با فیلترهای اختیاری</td></tr>
+                <tr><td>تغییر صفت و <code>commit</code>، <code>update()</code></td><td>ویرایش تکی و گروهی</td></tr>
+                <tr><td><code>session.delete</code>، <code>delete()</code>، حذف نرم</td><td>حذف</td></tr>
+                <tr><td><code>session.begin()</code></td><td>تراکنش همه یا هیچ</td></tr>
+                <tr><td><code>IntegrityError</code> و <code>rollback()</code></td><td>تور ایمنی قیدها</td></tr>
+                <tr><td><code>flush</code>، <code>refresh</code>، نقشه هویت</td><td>چرخه عمر نشست</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>همه دوره‌های فعال مینا را از گران به ارزان با یک <code>select</code> بگیرید.</li>
+            <li>تعداد دوره‌های هر سطح را بگیرید، فقط سطح‌هایی که بیش از یک دوره دارند (<code>having</code>).</li>
+            <li>نام مدرس ارزان‌ترین دوره را با یک پرس‌وجوی <code>join</code> بگیرید.</li>
+            <li>تابع <code>raise_prices(session, level, percent)</code> را با <code>update()</code> گروهی بنویسید.</li>
+            <li>در <code>05_session_lifecycle.py</code> نشست را با <code>expire_on_commit=False</code> بسازید. کدام SELECT حذف می‌شود؟</li>
+            <li><code>03_refactor_me</code> را بازنویسی کنید و با Bruno ثابت کنید تزریق SQL و مشکل «یک خطا همه را خراب می‌کند» برطرف شده است.</li>
+            <li>در پروژه <code>GET /courses/stats</code> بسازید که برای هر سطح تعداد دوره‌های فعال و میانگین قیمت را، با محاسبه پایگاه داده، برگرداند.</li>
+            <li>حذف دوره‌ای که دانشجوی فعال دارد را با ۴۰۹ رد کنید و پارامتر <code>?force=true</code> برای حذف اجباری بگذارید.</li>
+            <li><strong>تکلیف:</strong> CRUD کتابخانه را کامل کنید: امانت گرفتن و برگرداندن کتاب در <strong>یک تراکنش</strong> (ردیف امانت و پرچم <code>available</code> با هم تغییر کنند) و یک جست‌وجو با دست‌کم چهار فیلتر اختیاری.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-05.html">فصل قبل: SQLAlchemy 2: موتور، نشست و مدل‌های تایپ‌دار</a>
+        <a href="chapter-07.html">فصل بعد: رابطه‌ها و بارگذاری بهینه در SQLAlchemy</a>
+    </div>
+
+</main>
+
+</body>
+</html>

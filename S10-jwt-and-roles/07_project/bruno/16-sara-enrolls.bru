@@ -1,0 +1,21 @@
+meta {
+  name: Sara enrolls
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/courses/{{courseId}}/enrollments
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{studentToken}}
+}
+
+tests {
+  test("status is 201", function() {
+    expect(res.status).to.equal(201);
+  });
+}

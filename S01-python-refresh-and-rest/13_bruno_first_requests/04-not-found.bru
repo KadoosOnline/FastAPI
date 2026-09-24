@@ -1,0 +1,17 @@
+meta {
+  name: Missing resource (404)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{publicApi}}/posts/999999
+  body: none
+  auth: none
+}
+
+tests {
+  test("404 Not Found", function() {
+    expect(res.status).to.equal(404);
+  });
+}

@@ -1,0 +1,17 @@
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic[email]==2.13.5
+pydantic-settings==2.15.0
+SQLAlchemy[asyncio]==2.0.54
+aiosqlite==0.22.1
+httpx==0.28.1
+alembic==1.20.0
+pwdlib[argon2]==0.3.1
+python-multipart==0.0.32
+PyJWT==2.15.0
+
+# testing (session 13)
+pytest==9.1.1
+anyio==4.15.1
+# Starlette 1.7 TestClient prefers httpx2 (a maintained fork of httpx); without it you see a warning
+httpx2==2.13.1

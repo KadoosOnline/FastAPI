@@ -1,0 +1,17 @@
+meta {
+  name: Typo in a parameter name (422)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/courses?levle=advanced
+  body: none
+  auth: none
+}
+
+tests {
+  test("status is 422", function() {
+    expect(res.status).to.equal(422);
+  });
+}

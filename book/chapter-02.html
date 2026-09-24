@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="فصل دو: قدم‌های اول FastAPI. برنامه و سرور، پارامتر مسیر و پرس‌وجو، بدنه درخواست، کد وضعیت، PUT و PATCH و DELETE، روترها، Swagger">
+    <title>فصل ۲: قدم‌های اول FastAPI</title>
+    <link rel="icon" href="logokm.png" type="image/png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="book-bar">
+    <a class="name" href="index.html">توسعه بک‌اند با FastAPI</a>
+    <a href="index.html#toc">فهرست مطالب</a>
+</header>
+
+<main class="paper">
+
+    <div class="chapter-head">
+        <span class="chapter-num">فصل ۲</span>
+        <h1>قدم‌های اول FastAPI</h1>
+        <p class="lead">اولین endpointهای واقعی را می‌نویسیم: پارامتر مسیر و پرس‌وجو را می‌خوانیم، بدنه JSON می‌گیریم، با کد وضعیت درست پاسخ می‌دهیم و API را با روترها مرتب می‌کنیم. در پایان فصل، آموزشگاه اولین API خود را دارد: دوره‌ها و کاربران با CRUD کامل، که درخواست به درخواست در Bruno آزموده می‌شود.</p>
+    </div>
+
+    <div class="mini-toc">
+        <span class="box-title">در این فصل می‌خوانید</span>
+        <ol>
+            <li><a href="#s1">درخواست، مسیر، تابع، پاسخ</a></li>
+            <li><a href="#s2">پارامتر مسیر</a></li>
+            <li><a href="#s3">پارامتر پرس‌وجو</a></li>
+            <li><a href="#s4">بدنه درخواست</a></li>
+            <li><a href="#s5">کدهای وضعیت درست</a></li>
+            <li><a href="#s6">پنج روش روی یک منبع: CRUD کامل</a></li>
+            <li><a href="#s7">روترها: تقسیم API به فایل‌ها</a></li>
+            <li><a href="#s8">پروژه: API آموزشگاه، نسخه یک</a></li>
+            <li><a href="#s9">خلاصه فصل</a></li>
+        </ol>
+    </div>
+
+    <h2 id="s1">۱. درخواست، مسیر، تابع، پاسخ</h2>
+    <p>هر درخواستی که به یک برنامه FastAPI می‌رسد این مسیر را طی می‌کند:</p>
+    <ol>
+        <li>سرور <strong>uvicorn</strong> درخواست را از شبکه می‌گیرد و به برنامه می‌دهد.</li>
+        <li>FastAPI با نگاه به روش و نشانی، <strong>تابع مسیر</strong> (path operation) مناسب را پیدا می‌کند.</li>
+        <li>پارامترهای تابع را از روی راهنمای نوع آنها از نشانی، رشته پرس‌وجو یا بدنه می‌خواند و بررسی می‌کند.</li>
+        <li>تابع شما اجرا می‌شود و یک مقدار برمی‌گرداند.</li>
+        <li>FastAPI آن مقدار را به JSON تبدیل می‌کند و با کد وضعیت مناسب پس می‌فرستد.</li>
+    </ol>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI(title=&#x27;Training Center API&#x27;, version=&#x27;0.1.0&#x27;)
+
+
+@app.get(&#x27;/&#x27;)
+def home() -&gt; dict[str, str]:
+    return {&#x27;message&#x27;: &#x27;Welcome to the Training Center API&#x27;}
+
+
+@app.get(&#x27;/about&#x27;)
+def about() -&gt; dict[str, str | int]:
+    &quot;&quot;&quot;This docstring appears in /docs.&quot;&quot;&quot;
+    return {&#x27;institute&#x27;: &#x27;Kadoos&#x27;, &#x27;city&#x27;: &#x27;Rasht&#x27;, &#x27;sessions&#x27;: 16}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">کوچک‌ترین API: نمونه <bdi dir="ltr">01_first_app/app.py</bdi></p>
+    <ul>
+        <li><code>@app.get(&#x27;/&#x27;)</code> یک دکوراتور است، همان که در فصل اول مرور کردیم: «وقتی <code>GET /</code> رسید این تابع را صدا بزن».</li>
+        <li>تابع یک دیکشنری برمی‌گرداند و FastAPI آن را به JSON تبدیل می‌کند.</li>
+        <li><code>reload=True</code> سرور را با هر ذخیره فایل دوباره راه می‌اندازد. فقط در زمان توسعه.</li>
+        <li><code>/docs</code> رابط Swagger و <code>/redoc</code> همان مستند برای خواندن است. docstring تابع در مستند نشان داده می‌شود.</li>
+    </ul>
+
+    <h2 id="s2">۲. پارامتر مسیر</h2>
+    <p>بخش متغیر نشانی داخل آکولاد می‌آید: <code>/courses/{course_id}</code>. نوع <code>int</code> باعث می‌شود FastAPI مقدار را به عدد تبدیل کند و اگر نشد، <strong>پیش از اجرای تابع شما</strong> پاسخ ۴۲۲ بدهد.</p>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
+
+COURSES = {
+    1: {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;Python Basics&#x27;, &#x27;price&#x27;: 2_500_000},
+    2: {&#x27;id&#x27;: 2, &#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000},
+    3: {&#x27;id&#x27;: 3, &#x27;title&#x27;: &#x27;HTML and CSS&#x27;, &#x27;price&#x27;: 1_900_000},
+}
+
+
+@app.get(&#x27;/courses/cheapest&#x27;)
+def cheapest_course() -&gt; dict:
+    return min(COURSES.values(), key=lambda course: course[&#x27;price&#x27;])
+
+
+@app.get(&#x27;/courses/{course_id}&#x27;)
+def get_course(course_id: int) -&gt; dict:
+    if course_id not in COURSES:
+        raise HTTPException(status_code=404, detail=f&#x27;Course {course_id} not found&#x27;)
+    return COURSES[course_id]
+
+
+@app.get(&#x27;/users/{username}/courses/{course_id}&#x27;)
+def user_course(username: str, course_id: int) -&gt; dict:
+    &quot;&quot;&quot;Two path parameters in one URL.&quot;&quot;&quot;
+    return {&#x27;username&#x27;: username, &#x27;course_id&#x27;: course_id}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">مسیر متغیر، ۴۰۴ و ترتیب مسیرها: نمونه <bdi dir="ltr">02_path_parameters/app.py</bdi></p>
+    <pre class="out">GET /courses/2          200 {&quot;id&quot;:2,&quot;title&quot;:&quot;FastAPI&quot;,&quot;price&quot;:4800000}
+GET /courses/9          404 {&quot;detail&quot;:&quot;Course 9 not found&quot;}
+GET /courses/abc        422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;int_parsing&quot;,&quot;loc&quot;:[&quot;path&quot;,&quot;course_id&quot;],...}]}
+GET /courses/cheapest   200 {&quot;id&quot;:3,&quot;title&quot;:&quot;HTML and CSS&quot;,&quot;price&quot;:1900000}</pre>
+    <div class="warn">
+        <span class="box-title">ترتیب مسیرها مهم است</span>
+        <p>مسیر <code>/courses/cheapest</code> باید <strong>پیش از</strong> <code>/courses/{course_id}</code> تعریف شود. در غیر این صورت FastAPI کلمه <code>cheapest</code> را شناسه دوره فرض می‌کند، نمی‌تواند آن را به عدد تبدیل کند و ۴۲۲ برمی‌گرداند.</p>
+    </div>
+    <p>دوره‌ای که وجود ندارد اشتباه <strong>کلاینت</strong> است: <code>HTTPException(status_code=404)</code>. هرگز ۲۰۰ با <code>{&quot;error&quot;: ...}</code> برنگردانید؛ کلاینت اول به کد وضعیت نگاه می‌کند.</p>
+
+    <h2 id="s3">۳. پارامتر پرس‌وجو</h2>
+    <p>هر پارامتری که در مسیر نیامده باشد از بخش بعد از <code>?</code> خوانده می‌شود:</p>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI
+
+app = FastAPI()
+
+COURSES = [
+    {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;Python Basics&#x27;, &#x27;price&#x27;: 2_500_000, &#x27;level&#x27;: &#x27;beginner&#x27;},
+    {&#x27;id&#x27;: 2, &#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000, &#x27;level&#x27;: &#x27;advanced&#x27;},
+    {&#x27;id&#x27;: 3, &#x27;title&#x27;: &#x27;HTML and CSS&#x27;, &#x27;price&#x27;: 1_900_000, &#x27;level&#x27;: &#x27;beginner&#x27;},
+    {&#x27;id&#x27;: 4, &#x27;title&#x27;: &#x27;SQL&#x27;, &#x27;price&#x27;: 2_900_000, &#x27;level&#x27;: &#x27;intermediate&#x27;},
+]
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses(
+    level: str | None = None,
+    max_price: int | None = None,
+    q: str | None = None,
+    limit: int = 10,
+) -&gt; list[dict]:
+    result = COURSES
+    if level is not None:
+        result = [c for c in result if c[&#x27;level&#x27;] == level]
+    if max_price is not None:
+        result = [c for c in result if c[&#x27;price&#x27;] &lt;= max_price]
+    if q:
+        result = [c for c in result if q.lower() in c[&#x27;title&#x27;].lower()]
+    return result[:limit]
+
+
+@app.get(&#x27;/search&#x27;)
+def search(q: str) -&gt; dict:
+    &quot;&quot;&quot;`q` has no default, so it is required: /search without ?q= gives 422.&quot;&quot;&quot;
+    return {&#x27;you searched for&#x27;: q}
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">فیلترها در رشته پرس‌وجو: نمونه <bdi dir="ltr">03_query_parameters/app.py</bdi></p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>تعریف</th><th>معنی</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>limit: int = 10</code></td><td>اختیاری با مقدار پیش‌فرض</td></tr>
+                <tr><td><code>level: str | None = None</code></td><td>اختیاری؛ «فرستاده نشده» یعنی <code>None</code></td></tr>
+                <tr><td><code>q: str</code></td><td>اجباری؛ اگر نیاید ۴۲۲</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p>قاعده ساده‌ای برای انتخاب: پارامتر مسیر می‌گوید <strong>کدام</strong> منبع (<code>/courses/2</code>) و پارامتر پرس‌وجو می‌گوید فهرست را <strong>چگونه</strong> نشان بده (فیلتر، مرتب‌سازی، صفحه).</p>
+
+    <h2 id="s4">۴. بدنه درخواست</h2>
+    <p>برای فرستادن داده به سرور، کلاینت JSON را در بدنه <code>POST</code> می‌گذارد. شکل مورد انتظار را با یک مدل کوچک Pydantic توصیف می‌کنیم؛ پارامتری که نوعش <code>BaseModel</code> باشد از بدنه خوانده می‌شود. کل فصل سوم درباره Pydantic است و اینجا فقط به حداقل آن نیاز داریم.</p>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+class NewCourse(BaseModel):
+    title: str
+    price: int
+    capacity: int = 20  # optional in the JSON, with a default
+
+
+COURSES: list[dict] = []
+
+
+@app.post(&#x27;/courses&#x27;)
+def create_course(course: NewCourse) -&gt; dict:
+    new = {&#x27;id&#x27;: len(COURSES) + 1, **course.model_dump()}
+    COURSES.append(new)
+    return new
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses() -&gt; list[dict]:
+    return COURSES
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">ساختن دوره: نمونه <bdi dir="ltr">04_request_body/app.py</bdi></p>
+
+    <h2 id="s5">۵. کدهای وضعیت درست</h2>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+class NewUser(BaseModel):
+    email: str
+    full_name: str
+
+
+USERS: dict[int, dict] = {1: {&#x27;id&#x27;: 1, &#x27;email&#x27;: &#x27;sara@example.com&#x27;, &#x27;full_name&#x27;: &#x27;Sara&#x27;}}
+
+
+@app.post(&#x27;/users&#x27;, status_code=status.HTTP_201_CREATED)
+def create_user(user: NewUser) -&gt; dict:
+    if any(u[&#x27;email&#x27;] == user.email for u in USERS.values()):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=&#x27;Email already registered&#x27;)
+    new_id = max(USERS, default=0) + 1
+    USERS[new_id] = {&#x27;id&#x27;: new_id, **user.model_dump()}
+    return USERS[new_id]
+
+
+@app.delete(&#x27;/users/{user_id}&#x27;, status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int) -&gt; None:
+    if user_id not in USERS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=&#x27;User not found&#x27;)
+    del USERS[user_id]
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">۲۰۱، ۲۰۴، ۴۰۴ و ۴۰۹: نمونه <bdi dir="ltr">05_status_codes/app.py</bdi></p>
+    <ul>
+        <li><code>status_code=status.HTTP_201_CREATED</code> در دکوراتور، کد موفقیت همان endpoint را تعیین می‌کند.</li>
+        <li>پاسخ ۲۰۴ بدنه ندارد؛ تابع چیزی برنمی‌گرداند (<code>-&gt; None</code>).</li>
+        <li>ثابت‌های <code>fastapi.status</code> از عددهای خالی خواناترند.</li>
+    </ul>
+
+    <h2 id="s6">۶. پنج روش روی یک منبع: CRUD کامل</h2>
+    <pre class="code"><code>class CourseIn(BaseModel):
+    title: str
+    price: int
+    capacity: int
+
+
+class CoursePatch(BaseModel):
+    title: str | None = None
+    price: int | None = None
+    capacity: int | None = None
+
+
+COURSES: dict[int, dict] = {1: {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;FastAPI&#x27;, &#x27;price&#x27;: 4_800_000, &#x27;capacity&#x27;: 12}}
+
+
+def get_or_404(course_id: int) -&gt; dict:
+    if course_id not in COURSES:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=&#x27;Course not found&#x27;)
+    return COURSES[course_id]
+
+
+@app.get(&#x27;/courses&#x27;)
+def list_courses() -&gt; list[dict]:
+    return list(COURSES.values())
+
+
+@app.post(&#x27;/courses&#x27;, status_code=status.HTTP_201_CREATED)
+def create_course(data: CourseIn) -&gt; dict:
+    new_id = max(COURSES, default=0) + 1
+    COURSES[new_id] = {&#x27;id&#x27;: new_id, **data.model_dump()}
+    return COURSES[new_id]
+
+
+@app.get(&#x27;/courses/{course_id}&#x27;)
+def get_course(course_id: int) -&gt; dict:
+    return get_or_404(course_id)
+
+
+@app.put(&#x27;/courses/{course_id}&#x27;)
+def replace_course(course_id: int, data: CourseIn) -&gt; dict:
+    get_or_404(course_id)
+    COURSES[course_id] = {&#x27;id&#x27;: course_id, **data.model_dump()}
+    return COURSES[course_id]
+
+
+@app.patch(&#x27;/courses/{course_id}&#x27;)
+def update_course(course_id: int, data: CoursePatch) -&gt; dict:
+    course = get_or_404(course_id)
+    course.update(data.model_dump(exclude_unset=True))
+    return course
+
+
+@app.delete(&#x27;/courses/{course_id}&#x27;, status_code=status.HTTP_204_NO_CONTENT)
+def delete_course(course_id: int) -&gt; None:
+    get_or_404(course_id)
+    del COURSES[course_id]
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">CRUD کامل روی دوره‌ها: نمونه <bdi dir="ltr">06_put_patch_delete/app.py</bdi></p>
+
+    <h3>PUT یا PATCH؟</h3>
+    <ul>
+        <li><strong>PUT</strong> تمام منبع جدید را می‌فرستد. فیلد جاافتاده خطاست (۴۲۲).</li>
+        <li><strong>PATCH</strong> فقط آنچه عوض می‌شود را می‌فرستد: <code>{&quot;price&quot;: 100}</code>. همه فیلدهای مدل اختیاری‌اند و <code>model_dump(exclude_unset=True)</code> فقط فیلدهایی را می‌دهد که کلاینت واقعاً فرستاده است.</li>
+    </ul>
+    <p>تابع کمکی <code>get_or_404</code> نمی‌گذارد یک بررسی را پنج بار بنویسیم. در فصل چهارم همین تکرار را با وابستگی‌ها و استثناهای سفارشی از بین می‌بریم.</p>
+
+    <h2 id="s7">۷. روترها: تقسیم API به فایل‌ها</h2>
+    <p>یک فایل با سی endpoint خوانا نیست. <code>APIRouter</code> یک «برنامه کوچک» است که endpointهای <strong>یک منبع</strong> را نگه می‌دارد:</p>
+    <pre class="code"><code>from fastapi import APIRouter, HTTPException
+
+router = APIRouter(prefix=&#x27;/courses&#x27;, tags=[&#x27;courses&#x27;])
+
+COURSES = {1: {&#x27;id&#x27;: 1, &#x27;title&#x27;: &#x27;FastAPI&#x27;}, 2: {&#x27;id&#x27;: 2, &#x27;title&#x27;: &#x27;Python&#x27;}}
+
+
+@router.get(&#x27;&#x27;)  # the full path is /courses
+def list_courses() -&gt; list[dict]:
+    return list(COURSES.values())
+
+
+@router.get(&#x27;/{course_id}&#x27;)  # the full path is /courses/{course_id}
+def get_course(course_id: int) -&gt; dict:
+    if course_id not in COURSES:
+        raise HTTPException(404, detail=&#x27;Course not found&#x27;)
+    return COURSES[course_id]</code></pre>
+    <p class="code-caption">روتر دوره‌ها: نمونه <bdi dir="ltr">07_routers/routers/courses.py</bdi></p>
+    <pre class="code"><code>import uvicorn
+from fastapi import FastAPI
+
+from routers import courses, users
+
+app = FastAPI(title=&#x27;Training Center API&#x27;)
+app.include_router(courses.router)
+app.include_router(users.router)
+
+
+if __name__ == &#x27;__main__&#x27;:
+    uvicorn.run(&#x27;app:app&#x27;, reload=True)</code></pre>
+    <p class="code-caption">وصل کردن روترها: نمونه <bdi dir="ltr">07_routers/app.py</bdi></p>
+    <p><code>prefix</code> به ابتدای همه مسیرهای روتر اضافه می‌شود و <code>tags</code> آنها را در <code>/docs</code> گروه‌بندی می‌کند.</p>
+
+    <h2 id="s8">۸. پروژه: API آموزشگاه، نسخه یک</h2>
+    <p>هسته پایتونی فصل اول حالا پشت endpointها می‌رود. داده هنوز در حافظه است (دیکشنری‌های <code>data.py</code>)، پس با راه‌اندازی دوباره سرور پاک می‌شود. در فصل پنجم پایگاه داده واقعی می‌آید.</p>
+    <pre class="out">08_project/
+├── main.py              برنامه و وصل کردن روترها
+├── data.py              «پایگاه داده» جعلی: دو دیکشنری و یک شمارنده
+├── routers/
+│   ├── courses.py       فهرست با فیلتر، خواندن، ساختن، PUT، PATCH، DELETE
+│   └── users.py         فهرست، خواندن، ساختن (با ۴۰۹ برای ایمیل تکراری)، حذف
+└── bruno/               دوازده درخواست، چهار تای آنها عمداً ناموفق</pre>
+    <pre class="code"><code>@router.post(&#x27;&#x27;, status_code=status.HTTP_201_CREATED)
+def create_user(data: UserIn) -&gt; dict:
+    email = data.email.lower()
+    if any(user[&#x27;email&#x27;] == email for user in USERS.values()):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=&#x27;Email already registered&#x27;)
+    user_id = next_id(USERS)
+    USERS[user_id] = {&#x27;id&#x27;: user_id, **data.model_dump(), &#x27;email&#x27;: email}
+    return USERS[user_id]</code></pre>
+    <p class="code-caption">۴۰۹ برای ایمیل تکراری: <bdi dir="ltr">08_project/routers/users.py</bdi></p>
+    <p>در Bruno پوشه <code>08_project/bruno</code> را باز کنید و همه درخواست‌ها را با <strong>Runner</strong> اجرا کنید. به درخواست‌های ناموفق دقت کنید: <code>/courses/abc</code> چرا ۴۲۲ است و نه ۴۰۴؟ قیمت متنی چه خطایی می‌دهد؟</p>
+    <div class="try">
+        <span class="box-title">امتحان کنید</span>
+        <p>در Bruno بدنه‌ای بفرستید که اصلاً JSON نیست (نوع <strong>Text</strong> را انتخاب کنید و بنویسید <code>hello</code>). چه کدی می‌گیرید و چه کسی آن را تولید کرده است، شما یا FastAPI؟</p>
+    </div>
+    <div class="folder-ref">
+        <span class="box-title">فایل‌های تمرینی این فصل</span>
+        <p>پوشه <code>S02-fastapi-first-steps</code> هشت پوشه دارد. در هر کدام <code>python app.py</code> بزنید و <code>http://127.0.0.1:8000/docs</code> را باز کنید. پروژه با <code>python main.py</code> در پوشه <code>08_project</code> اجرا می‌شود. همین سرور را با <code>uvicorn main:app --reload</code> هم می‌توانید اجرا کنید.</p>
+    </div>
+
+    <h2 id="s9">۹. خلاصه فصل</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>ابزار</th><th>وظیفه آن</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>FastAPI()</code> و <code>uvicorn.run(...)</code></td><td>ساختن برنامه و اجرای سرور</td></tr>
+                <tr><td><code>@app.get</code>، <code>post</code>، <code>put</code>، <code>patch</code>، <code>delete</code></td><td>وصل کردن روش و مسیر به تابع</td></tr>
+                <tr><td><code>/courses/{course_id}</code></td><td>پارامتر مسیر با تبدیل خودکار</td></tr>
+                <tr><td>پارامتر بدون پیش‌فرض</td><td>پارامتر پرس‌وجوی اجباری</td></tr>
+                <tr><td>مدل <code>BaseModel</code> در پارامترها</td><td>خواندن بدنه JSON</td></tr>
+                <tr><td><code>status_code=201</code></td><td>کد موفقیت endpoint</td></tr>
+                <tr><td><code>HTTPException(404, detail=...)</code></td><td>پاسخ خطای درست</td></tr>
+                <tr><td><code>model_dump(exclude_unset=True)</code></td><td>فقط فیلدهای فرستاده‌شده، برای PATCH</td></tr>
+                <tr><td><code>APIRouter(prefix=..., tags=...)</code></td><td>تقسیم API به فایل‌ها</td></tr>
+                <tr><td><code>/docs</code> و <code>/redoc</code></td><td>مستند و آزمایشگاه زنده</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="exercise">
+        <h3>تمرین‌های این فصل</h3>
+        <ol>
+            <li>در <code>02_path_parameters</code> مسیر <code>/courses/most-expensive</code> را اضافه کنید. یک بار آن را بعد از <code>/courses/{course_id}</code> بگذارید و خطا را توضیح دهید.</li>
+            <li>در <code>03_query_parameters</code> پارامتر <code>min_price</code> و <code>sort</code> (با مقدارهای <code>price</code> یا <code>title</code>) اضافه کنید. با <code>sort=banana</code> چه می‌شود؟</li>
+            <li>در پروژه endpoint <code>GET /courses/{course_id}/seats</code> بسازید که ظرفیت و صندلی‌های خالی را برگرداند.</li>
+            <li>ساختن دوره با قیمت منفی یا ظرفیت صفر را با <code>HTTPException(400)</code> رد کنید. (فصل سوم این را بهتر حل می‌کند.)</li>
+            <li>برای کاربران <code>PUT</code> و <code>PATCH</code> بنویسید، با ۴۰۴ و ۴۰۹ (ایمیلی که کاربر دیگری دارد).</li>
+            <li>روتری برای ثبت‌نام بسازید: <code>POST /courses/{course_id}/students/{user_id}</code>؛ ثبت‌نام دوباره ۴۰۹ و دوره یا کاربر ناموجود ۴۰۴.</li>
+            <li>برای هر endpoint تازه یک درخواست موفق و یک درخواست ناموفق در Bruno اضافه کنید.</li>
+            <li><strong>تکلیف:</strong> یک API کتابخانه با همین ساختار بسازید: کتاب‌ها با CRUD کامل، فیلتر <code>?available=true&amp;author=...</code> و <code>POST /books/{id}/borrow</code> که برای کتاب امانت‌رفته ۴۰۹ بدهد. دست‌کم ده درخواست Bruno که چهار تای آنها عمداً ناموفق باشد.</li>
+        </ol>
+    </div>
+
+    <div class="pager">
+        <a href="chapter-01.html">فصل قبل: مرور پایتون پیشرفته، HTTP و REST</a>
+        <a href="chapter-03.html">فصل بعد: Pydantic: اعتبارسنجی و طرح‌واره‌ها</a>
+    </div>
+
+</main>
+
+</body>
+</html>

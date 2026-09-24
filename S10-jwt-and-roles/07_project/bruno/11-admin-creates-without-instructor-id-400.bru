@@ -1,0 +1,30 @@
+meta {
+  name: Admin creates without instructor_id (400)
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/courses
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+body:json {
+  {
+    "title": "Admin Course",
+    "price": 1500000,
+    "capacity": 2,
+    "level": "intermediate"
+  }
+}
+
+tests {
+  test("status is 400", function() {
+    expect(res.status).to.equal(400);
+  });
+}
